@@ -51,10 +51,7 @@ net_init(
 
 	if ( mode == NET_CLIENT )
 	{
-		if ( strcmp(ip6, "lo") == 0 )
-			err = inet_pton(AF_INET6, "::", &(net->addr.sin6_addr));
-		else
-			err = inet_pton(AF_INET6, ip6, &(net->addr.sin6_addr));
+		err = inet_pton(AF_INET6, ip6, &(net->addr.sin6_addr));
 
 		if ( err != 1 )
 			return NET_ERR_INIT_ADDR;
