@@ -42,5 +42,15 @@ typedef struct {
 	unsigned char chunk_hashes[32][0];
 } RequestListAnswer;
 
+typedef struct {
+	unsigned char type;
+	unsigned char chunk_hash[32];
+} RequestPut;
+
+typedef struct {
+	unsigned char type;
+	unsigned char chunk_hash[32];
+} RequestPutAck;
+
 #endif
 
