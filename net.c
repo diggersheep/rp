@@ -39,8 +39,8 @@ net_init   ( struct net * restrict net, const short port, const char * restrict 
 
 	//init struct
 	net->addr_len = sizeof(net->addr);
-	net->mode = mode;
-	net->fd = -1;
+	net->mode     = mode;
+	net->fd       = -1;
 
 	//set in memory sockaddr_in6 + init sockaddr_in6
 	if (version == NET_IPV6 )
@@ -144,7 +144,7 @@ net_read ( struct net * net, void * buf, size_t len, int flags )
 	if ( net->mode != NET_SERVER && net->mode != NET_CLIENT ) return NET_FAIL;
 
 	struct sockaddr addr;
-	socklen_t l;
+	socklen_t l = sizeof(addr);
 
 	ssize_t ret = 0;//return idx
 	ret = recvfrom(
@@ -186,7 +186,6 @@ net_read ( struct net * net, void * buf, size_t len, int flags )
 	if ( idx > net->data.length )
 		idx = -1;
 
-
 	if ( idx == -1 )
 	{
 		struct addr * new_addr = malloc(sizeof(addr));
@@ -198,8 +197,23 @@ net_read ( struct net * net, void * buf, size_t len, int flags )
 	return ret;
 }
 
-void
+int
 net_shutdown ( struct net * net )
 {
-	vec_deinit( &(net->data) );
+	int err = NET_OK;
+	if ( net->mode == NET_SERVER )
+	{
+		printf("client vector\n");
+
+		for ( int i = 0 ; i < net->data.length ; i++ )
+		{
+			printf("  - %d\n", i);
+		}
+
+		vec_deinit( &(net->data) );
+	}
+
+	err = shutdown(net->fd, SHUT_RDWR);
+
+	return err;
 }
