@@ -22,12 +22,12 @@ main(int argc, const char** argv)
 
 	vec_init(&registered_hashes);
 
-	net_server(&net, 9000, "::", NET_IPV6);
-
-	printf("Tracker running on ::, port 9000.\n");
+	net_server(&net, 9000, "0.0.0.0", NET_IPV4);
 
 	while ((count = net_read(&net, buffer, sizeof(buffer), 0)) > 0) {
 		RequestType type = buffer[0];
+
+		printf("%zu: ", count);
 
 		/* FIXME: For each case, assert() that count is more than the matching expected datagram size. */
 		switch (type) {
@@ -37,17 +37,31 @@ main(int argc, const char** argv)
 					RequestPut* datagram = (void*) buffer;
 					int hashExists = 0;
 
+					printf("<");
+					print_hash(datagram->chunk_hash);
+					printf(">\n");
+
+					for (int i = 0; i < 4; i++)
+						printf("%i\n", (unsigned char) net.current->sa_data[i + 2]);
+
 					int i;
 					RegisteredHash* rh;
+
+					if (1) {
+						char address[INET6_ADDRSTRLEN];
+						/* NIKSAMÈR */
+						inet_ntop(net.current->sa_family, &net.current->sa_data[2], address, sizeof(address));
+						printf("<%s>\n", address);
+					}
 
 					vec_foreach (&registered_hashes, rh, i) {
 						int sameHash = memcmp(rh->hash, datagram->chunk_hash, sizeof(rh->hash)) == 0;
 						int sameHost = memcmp(&rh->client, net.current, sizeof(*net.current));
 
 						if (1) {
-							char debug[INET6_ADDRSTRLEN];
-							inet_ntop(AF_INET6, &rh->client, debug, sizeof(rh->client));
-							printf("<%s>\n", debug);
+							char address[INET6_ADDRSTRLEN];
+							inet_ntop(rh->client.sa_family, &rh->client, address, sizeof(address));
+							printf("<%s>\n", address);
 						}
 
 						if (sameHash && sameHost) {
@@ -92,13 +106,11 @@ main(int argc, const char** argv)
 
 					vec_foreach (&registered_hashes, rh, i) {
 						if (!memcmp(rh->hash, datagram->file_hash, sizeof(*rh->hash))) {
-							inet_ntop(AF_INET6, &rh->client, address, sizeof(rh->client));
+							inet_ntop(rh->client.sa_family, &rh->client, address, sizeof(address));
 
 							printf("  -> %s [", address);
 							print_hash(rh->hash);
 							puts("] ");
-
-							inet_ntop(AF_INET6, &rh->client, address, sizeof(rh->client));
 
 							if (rh->client.sa_family == AF_INET) {
 								printf("%s", address);
@@ -138,8 +150,8 @@ main(int argc, const char** argv)
 						printf("  Hash[%i]: ", i);
 						print_hash(rh->hash);
 
-						inet_ntop(AF_INET6, &rh->client, address, sizeof(rh->client));
-						printf("<%s>\n", address);
+						inet_ntop(rh->client.sa_family, &rh->client, address, sizeof(address));
+						printf(" <%s>\n", address);
 
 						puts("\n");
 					}
