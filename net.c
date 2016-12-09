@@ -33,7 +33,6 @@ net_init   ( struct net * restrict net, const short port, const char * restrict 
 {
 	int err = 0; // error return
 
-
 	// check mode
 	if ( mode != NET_SERVER && mode != NET_CLIENT)
 		return NET_ERR_INIT_MODE;
@@ -197,6 +196,13 @@ net_read ( struct net * net, void * buf, size_t len, int flags )
 	}
 
 	net->current = &addr;
+	if ( net->mode == AF_INET )
+	{
+		char ipp[32];
+		inet_ntop( AF_INET, &(net->current), ipp, sizeof(net->current) );
+
+		printf(" @IP current => %s\n", ipp);
+	}
 
 	return ret;
 }
@@ -208,7 +214,6 @@ net_shutdown ( struct net * net )
 	if ( net->mode == NET_SERVER )
 	{
 		printf("client vector\n");
-
 
 		int i = 0;
 		void * e;
