@@ -30,9 +30,8 @@ int
 net_init(
 	struct net * net, // struct net uninitialize
 	const short port, // port 
-	const char * ip,  // IP v4/v6 in string
-	int mode,         // NET_CLIENT | NET_SERVER
-	int version)
+	const char * ip6, // ipv6 in string
+	int mode)         // NET_CLIENT | NET_SERVER
 {
 	int err = 0; // error return
 
@@ -46,40 +45,23 @@ net_init(
 	net->fd = -1;
 
 	//set in memory sockaddr_in6 + init sockaddr_in6
-	if (version == NET_IPV6 )
-	{		
-		memset( (char*)&(net->addr), 0, sizeof(net->addr));
-		net->addr.v6.sin6_family = AF_INET6;
-		net->addr.v6.sin6_port   = htons(port);
-	}
-	else // set in memory sockaddr_in + init socckaddr_in
-	{
-		memset( (char*)&(net->addr), 0, sizeof(net->addr));
-		net->addr.v4.sin_family = AF_INET;
-		net->addr.v4.sin_port   = htons(port);
-	}
+	memset( (char*)&(net->addr), 0, sizeof(net->addr));
+	net->addr.sin6_family = AF_INET6;
+	net->addr.sin6_port   = htons(port);
 
-	// copy of @ip
-	if ( version == NET_IPV6 )
+	if ( mode == NET_CLIENT )
 	{
-		err = inet_pton( AF_INET6, ip, &(net->addr.v6.sin6_addr) );
-	}
-	else
-	{
-		err = inet_pton( AF_INET , ip, &(net->addr.v4.sin_addr));
-	}
+		err = inet_pton(AF_INET6, ip6, &(net->addr.sin6_addr));
 
-	// err if @ip can't be copying
-	if ( err != 1 )
-		return NET_ERR_INIT_ADDR;
-	printf("Init on address %s and %d port.\n", ip, port);
+		if ( err != 1 )
+			return NET_ERR_INIT_ADDR;
+
+		printf("Init on address %s and %d port.\n", ip6, port);
+
+	}
 
 	//init socket UDP - ipV6
-	if (version == NET_IPV6)
-		net->fd = socket(AF_INET6, SOCK_DGRAM, 0);
-	else
-		net->fd = socket(AF_INET , SOCK_DGRAM, 0);
-
+	net->fd = socket(AF_INET6, SOCK_DGRAM, 0);
 	if ( net->fd == -1 )
 		return NET_ERR_INIT_SOCK;
 
@@ -102,14 +84,14 @@ net_init(
 
 // Lazy init for server and client
 int
-net_client ( struct net * net, const short port, const char * ip6, int version )
+net_client ( struct net * net, const short port, const char * ip6 )
 {
-	return net_init(net, port, ip6, NET_CLIENT, version );
+	return net_init(net, port, ip6, NET_CLIENT);
 }
 int
-net_server ( struct net * net, const short port, const char * ip6, int version )
+net_server ( struct net * net, const short port, const char * ip6 )
 {
-	return net_init(net, port, ip6, NET_SERVER, version);
+	return net_init(net, port, ip6, NET_SERVER);
 }
 
 

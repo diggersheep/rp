@@ -25,6 +25,8 @@
 #define NET_ERR_INIT_SOCK 3
 #define NET_ERR_INIT_BIND 4
 
+#include "vec/vec.h"
+
 union s_addr
 {
 	struct sockaddr_in6 v6;
@@ -40,6 +42,8 @@ struct net
 	//addresses structure
 	union s_addr addr;
 	socklen_t    addr_len;
+
+	vec_void_t data;
 };
 
 //print errors and exit the program
@@ -51,9 +55,13 @@ int net_init   ( struct net * restrict net, const short port, const char * restr
 int net_client ( struct net * restrict net, const short port, const char * restrict ip6, int version );
 int net_server ( struct net * restrict net, const short port, const char * restrict ip6, int version );
 
+
+void net_shutdown ( struct net * net );
+
 //sendto and recvfrom with "struct net" structure
 ssize_t net_write ( struct net * restrict net, const void * restrict buf, size_t len, int flags );
 ssize_t net_read  ( struct net * restrict net,       void * restrict buf, size_t len, int flags );
+
 
 
 #endif
