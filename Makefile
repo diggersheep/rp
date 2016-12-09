@@ -15,7 +15,7 @@ LDFLAGS :=
 
 Q := @
 
-all: hash-file server
+all: hash-file tracker
 
 hash-file: hash-file.o hash.o sha256/sha256.o vec/vec.o 
 	@echo '[01;32m  LD >    [01;37mhash-file[00m'
@@ -34,22 +34,22 @@ hash-file.uninstall:
 	@echo '[01;37m  RM >    [01;37m$(BINDIR)/hash-file[00m'
 	$(Q)rm -f '$(DESTDIR)$(BINDIR)/hash-file'
 
-server: net.o hash.o sha256/sha256.o vec/vec.o server.o 
-	@echo '[01;32m  LD >    [01;37mserver[00m'
-	$(Q)$(CC) -o server $(LDFLAGS) net.o hash.o sha256/sha256.o vec/vec.o server.o 
+tracker: net.o hash.o sha256/sha256.o vec/vec.o tracker.o 
+	@echo '[01;32m  LD >    [01;37mtracker[00m'
+	$(Q)$(CC) -o tracker $(LDFLAGS) net.o hash.o sha256/sha256.o vec/vec.o tracker.o 
 
-server.install: server
-	@echo '[01;31m  IN >    [01;37m$(BINDIR)/server[00m'
+tracker.install: tracker
+	@echo '[01;31m  IN >    [01;37m$(BINDIR)/tracker[00m'
 	$(Q)mkdir -p '$(DESTDIR)$(BINDIR)'
-	$(Q)install -m0755 server $(DESTDIR)$(BINDIR)/server
+	$(Q)install -m0755 tracker $(DESTDIR)$(BINDIR)/tracker
 
-server.clean:  net.o.clean hash.o.clean sha256/sha256.o.clean vec/vec.o.clean server.o.clean
-	@echo '[01;37m  RM >    [01;37mserver[00m'
-	$(Q)rm -f server
+tracker.clean:  net.o.clean hash.o.clean sha256/sha256.o.clean vec/vec.o.clean tracker.o.clean
+	@echo '[01;37m  RM >    [01;37mtracker[00m'
+	$(Q)rm -f tracker
 
-server.uninstall:
-	@echo '[01;37m  RM >    [01;37m$(BINDIR)/server[00m'
-	$(Q)rm -f '$(DESTDIR)$(BINDIR)/server'
+tracker.uninstall:
+	@echo '[01;37m  RM >    [01;37m$(BINDIR)/tracker[00m'
+	$(Q)rm -f '$(DESTDIR)$(BINDIR)/tracker'
 
 hash-file.o: hash-file.c ./vec/vec.h ./sha256/sha256.h ./common.h ./hash.h
 	@echo '[01;34m  CC >    [01;37mhash-file.o[00m'
@@ -99,7 +99,7 @@ vec/vec.o.clean:
 
 vec/vec.o.uninstall:
 
-net.o: net.c ./net.h
+net.o: net.c ./net.h ./vec/vec.h
 	@echo '[01;34m  CC >    [01;37mnet.o[00m'
 	$(Q)$(CC) $(CFLAGS)  -c net.c   -o net.o
 
@@ -111,17 +111,17 @@ net.o.clean:
 
 net.o.uninstall:
 
-server.o: server.c ./net.h
-	@echo '[01;34m  CC >    [01;37mserver.o[00m'
-	$(Q)$(CC) $(CFLAGS)  -c server.c   -o server.o
+tracker.o: tracker.c ./common.h ./hash.h ./net.h ./tracker.h
+	@echo '[01;34m  CC >    [01;37mtracker.o[00m'
+	$(Q)$(CC) $(CFLAGS)  -c tracker.c   -o tracker.o
 
-server.o.install:
+tracker.o.install:
 
-server.o.clean:
-	@echo '[01;37m  RM >    [01;37mserver.o[00m'
-	$(Q)rm -f server.o
+tracker.o.clean:
+	@echo '[01;37m  RM >    [01;37mtracker.o[00m'
+	$(Q)rm -f tracker.o
 
-server.o.uninstall:
+tracker.o.uninstall:
 
 $(DESTDIR)$(PREFIX):
 	@echo '[01;35m  DIR >   [01;37m$(PREFIX)[00m'
@@ -138,12 +138,12 @@ $(DESTDIR)$(SHAREDIR):
 $(DESTDIR)$(INCLUDEDIR):
 	@echo '[01;35m  DIR >   [01;37m$(INCLUDEDIR)[00m'
 	$(Q)mkdir -p $(DESTDIR)$(INCLUDEDIR)
-install: subdirs.install hash-file.install server.install hash-file.o.install hash.o.install sha256/sha256.o.install vec/vec.o.install net.o.install hash.o.install sha256/sha256.o.install vec/vec.o.install server.o.install
+install: subdirs.install hash-file.install tracker.install hash-file.o.install hash.o.install sha256/sha256.o.install vec/vec.o.install net.o.install hash.o.install sha256/sha256.o.install vec/vec.o.install tracker.o.install
 	@:
 
 subdirs.install:
 
-uninstall: subdirs.uninstall hash-file.uninstall server.uninstall hash-file.o.uninstall hash.o.uninstall sha256/sha256.o.uninstall vec/vec.o.uninstall net.o.uninstall hash.o.uninstall sha256/sha256.o.uninstall vec/vec.o.uninstall server.o.uninstall
+uninstall: subdirs.uninstall hash-file.uninstall tracker.uninstall hash-file.o.uninstall hash.o.uninstall sha256/sha256.o.uninstall vec/vec.o.uninstall net.o.uninstall hash.o.uninstall sha256/sha256.o.uninstall vec/vec.o.uninstall tracker.o.uninstall
 	@:
 
 subdirs.uninstall:
@@ -153,7 +153,7 @@ test: all subdirs subdirs.test
 
 subdirs.test:
 
-clean: hash-file.clean server.clean hash-file.o.clean hash.o.clean sha256/sha256.o.clean vec/vec.o.clean net.o.clean hash.o.clean sha256/sha256.o.clean vec/vec.o.clean server.o.clean
+clean: hash-file.clean tracker.clean hash-file.o.clean hash.o.clean sha256/sha256.o.clean vec/vec.o.clean net.o.clean hash.o.clean sha256/sha256.o.clean vec/vec.o.clean tracker.o.clean
 
 distclean: clean
 
@@ -171,12 +171,13 @@ $(PACKAGE)-$(VERSION).tar.gz: distdir
 		$(PACKAGE)-$(VERSION)/Makefile \
 		$(PACKAGE)-$(VERSION)/project.zsh \
 		$(PACKAGE)-$(VERSION)/net.c \
-		$(PACKAGE)-$(VERSION)/server.c \
+		$(PACKAGE)-$(VERSION)/tracker.c \
 		$(PACKAGE)-$(VERSION)/hash-file.c \
 		$(PACKAGE)-$(VERSION)/hash.c \
 		$(PACKAGE)-$(VERSION)/sha256/sha256.c \
 		$(PACKAGE)-$(VERSION)/vec/vec.c \
 		$(PACKAGE)-$(VERSION)/net.h \
+		$(PACKAGE)-$(VERSION)/tracker.h \
 		$(PACKAGE)-$(VERSION)/hash.h \
 		$(PACKAGE)-$(VERSION)/sha256/sha256.h \
 		$(PACKAGE)-$(VERSION)/vec/vec.h
@@ -188,12 +189,13 @@ $(PACKAGE)-$(VERSION).tar.xz: distdir
 		$(PACKAGE)-$(VERSION)/Makefile \
 		$(PACKAGE)-$(VERSION)/project.zsh \
 		$(PACKAGE)-$(VERSION)/net.c \
-		$(PACKAGE)-$(VERSION)/server.c \
+		$(PACKAGE)-$(VERSION)/tracker.c \
 		$(PACKAGE)-$(VERSION)/hash-file.c \
 		$(PACKAGE)-$(VERSION)/hash.c \
 		$(PACKAGE)-$(VERSION)/sha256/sha256.c \
 		$(PACKAGE)-$(VERSION)/vec/vec.c \
 		$(PACKAGE)-$(VERSION)/net.h \
+		$(PACKAGE)-$(VERSION)/tracker.h \
 		$(PACKAGE)-$(VERSION)/hash.h \
 		$(PACKAGE)-$(VERSION)/sha256/sha256.h \
 		$(PACKAGE)-$(VERSION)/vec/vec.h
@@ -205,12 +207,13 @@ $(PACKAGE)-$(VERSION).tar.bz2: distdir
 		$(PACKAGE)-$(VERSION)/Makefile \
 		$(PACKAGE)-$(VERSION)/project.zsh \
 		$(PACKAGE)-$(VERSION)/net.c \
-		$(PACKAGE)-$(VERSION)/server.c \
+		$(PACKAGE)-$(VERSION)/tracker.c \
 		$(PACKAGE)-$(VERSION)/hash-file.c \
 		$(PACKAGE)-$(VERSION)/hash.c \
 		$(PACKAGE)-$(VERSION)/sha256/sha256.c \
 		$(PACKAGE)-$(VERSION)/vec/vec.c \
 		$(PACKAGE)-$(VERSION)/net.h \
+		$(PACKAGE)-$(VERSION)/tracker.h \
 		$(PACKAGE)-$(VERSION)/hash.h \
 		$(PACKAGE)-$(VERSION)/sha256/sha256.h \
 		$(PACKAGE)-$(VERSION)/vec/vec.h
@@ -239,7 +242,7 @@ help:
 	@echo ''
 	@echo '[01;37mProject targets: [00m'
 	@echo '    - [01;33mhash-file     [37m binary[00m'
-	@echo '    - [01;33mserver        [37m binary[00m'
+	@echo '    - [01;33mtracker       [37m binary[00m'
 	@echo ''
 	@echo '[01;37mMakefile options:[00m'
 	@echo '    - gnu:           true'
