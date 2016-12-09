@@ -1,4 +1,4 @@
-PACKAGE = 'test'
+PACKAGE = 'rp'
 VERSION = '0.0.1'
 
 PREFIX := /usr/local
@@ -10,99 +10,140 @@ INCLUDEDIR := $(PREFIX)/include
 CC := clang
 AR := ar
 RANLIB := ranlib
-CFLAGS := -std=gnu11 -Wall -Wextra -g -O2
+CFLAGS := -std=gnu11 -Wall -Wextra -g -O3
 LDFLAGS := 
 
 Q := @
 
-all: hash-file
+all: hash-file server
 
 hash-file: hash-file.o hash.o sha256/sha256.o vec/vec.o 
-	@echo '[01;32m  [LD]    [01;37mhash-file[00m'
+	@echo '[01;32m  LD >    [01;37mhash-file[00m'
 	$(Q)$(CC) -o hash-file $(LDFLAGS) hash-file.o hash.o sha256/sha256.o vec/vec.o 
 
 hash-file.install: hash-file
-	@echo '[01;31m  [IN]    [01;37m$(BINDIR)/hash-file[00m'
+	@echo '[01;31m  IN >    [01;37m$(BINDIR)/hash-file[00m'
 	$(Q)mkdir -p '$(DESTDIR)$(BINDIR)'
 	$(Q)install -m0755 hash-file $(DESTDIR)$(BINDIR)/hash-file
 
 hash-file.clean:  hash-file.o.clean hash.o.clean sha256/sha256.o.clean vec/vec.o.clean
-	@echo '[01;37m  [RM]    [01;37mhash-file[00m'
+	@echo '[01;37m  RM >    [01;37mhash-file[00m'
 	$(Q)rm -f hash-file
 
 hash-file.uninstall:
-	@echo '[01;37m  [RM]    [01;37m$(BINDIR)/hash-file[00m'
+	@echo '[01;37m  RM >    [01;37m$(BINDIR)/hash-file[00m'
 	$(Q)rm -f '$(DESTDIR)$(BINDIR)/hash-file'
 
+server: net.o hash.o sha256/sha256.o vec/vec.o server.o 
+	@echo '[01;32m  LD >    [01;37mserver[00m'
+	$(Q)$(CC) -o server $(LDFLAGS) net.o hash.o sha256/sha256.o vec/vec.o server.o 
+
+server.install: server
+	@echo '[01;31m  IN >    [01;37m$(BINDIR)/server[00m'
+	$(Q)mkdir -p '$(DESTDIR)$(BINDIR)'
+	$(Q)install -m0755 server $(DESTDIR)$(BINDIR)/server
+
+server.clean:  net.o.clean hash.o.clean sha256/sha256.o.clean vec/vec.o.clean server.o.clean
+	@echo '[01;37m  RM >    [01;37mserver[00m'
+	$(Q)rm -f server
+
+server.uninstall:
+	@echo '[01;37m  RM >    [01;37m$(BINDIR)/server[00m'
+	$(Q)rm -f '$(DESTDIR)$(BINDIR)/server'
+
 hash-file.o: hash-file.c ./vec/vec.h ./sha256/sha256.h ./common.h ./hash.h
-	@echo '[01;34m  [CC]    [01;37mhash-file.o[00m'
+	@echo '[01;34m  CC >    [01;37mhash-file.o[00m'
 	$(Q)$(CC) $(CFLAGS)  -c hash-file.c   -o hash-file.o
 
 hash-file.o.install:
 
 hash-file.o.clean:
-	@echo '[01;37m  [RM]    [01;37mhash-file.o[00m'
+	@echo '[01;37m  RM >    [01;37mhash-file.o[00m'
 	$(Q)rm -f hash-file.o
 
 hash-file.o.uninstall:
 
 hash.o: hash.c ./vec/vec.h ./sha256/sha256.h ./common.h
-	@echo '[01;34m  [CC]    [01;37mhash.o[00m'
+	@echo '[01;34m  CC >    [01;37mhash.o[00m'
 	$(Q)$(CC) $(CFLAGS)  -c hash.c   -o hash.o
 
 hash.o.install:
 
 hash.o.clean:
-	@echo '[01;37m  [RM]    [01;37mhash.o[00m'
+	@echo '[01;37m  RM >    [01;37mhash.o[00m'
 	$(Q)rm -f hash.o
 
 hash.o.uninstall:
 
 sha256/sha256.o: sha256/sha256.c sha256/rotate-bits.h sha256/sha256.h
-	@echo '[01;34m  [CC]    [01;37msha256/sha256.o[00m'
+	@echo '[01;34m  CC >    [01;37msha256/sha256.o[00m'
 	$(Q)$(CC) $(CFLAGS)  -c sha256/sha256.c   -o sha256/sha256.o
 
 sha256/sha256.o.install:
 
 sha256/sha256.o.clean:
-	@echo '[01;37m  [RM]    [01;37msha256/sha256.o[00m'
+	@echo '[01;37m  RM >    [01;37msha256/sha256.o[00m'
 	$(Q)rm -f sha256/sha256.o
 
 sha256/sha256.o.uninstall:
 
 vec/vec.o: vec/vec.c vec/vec.h
-	@echo '[01;34m  [CC]    [01;37mvec/vec.o[00m'
+	@echo '[01;34m  CC >    [01;37mvec/vec.o[00m'
 	$(Q)$(CC) $(CFLAGS)  -c vec/vec.c   -o vec/vec.o
 
 vec/vec.o.install:
 
 vec/vec.o.clean:
-	@echo '[01;37m  [RM]    [01;37mvec/vec.o[00m'
+	@echo '[01;37m  RM >    [01;37mvec/vec.o[00m'
 	$(Q)rm -f vec/vec.o
 
 vec/vec.o.uninstall:
 
+net.o: net.c ./net.h
+	@echo '[01;34m  CC >    [01;37mnet.o[00m'
+	$(Q)$(CC) $(CFLAGS)  -c net.c   -o net.o
+
+net.o.install:
+
+net.o.clean:
+	@echo '[01;37m  RM >    [01;37mnet.o[00m'
+	$(Q)rm -f net.o
+
+net.o.uninstall:
+
+server.o: server.c ./net.h
+	@echo '[01;34m  CC >    [01;37mserver.o[00m'
+	$(Q)$(CC) $(CFLAGS)  -c server.c   -o server.o
+
+server.o.install:
+
+server.o.clean:
+	@echo '[01;37m  RM >    [01;37mserver.o[00m'
+	$(Q)rm -f server.o
+
+server.o.uninstall:
+
 $(DESTDIR)$(PREFIX):
-	@echo '[01;35m  [DIR]   [01;37m$(PREFIX)[00m'
+	@echo '[01;35m  DIR >   [01;37m$(PREFIX)[00m'
 	$(Q)mkdir -p $(DESTDIR)$(PREFIX)
 $(DESTDIR)$(BINDIR):
-	@echo '[01;35m  [DIR]   [01;37m$(BINDIR)[00m'
+	@echo '[01;35m  DIR >   [01;37m$(BINDIR)[00m'
 	$(Q)mkdir -p $(DESTDIR)$(BINDIR)
 $(DESTDIR)$(LIBDIR):
-	@echo '[01;35m  [DIR]   [01;37m$(LIBDIR)[00m'
+	@echo '[01;35m  DIR >   [01;37m$(LIBDIR)[00m'
 	$(Q)mkdir -p $(DESTDIR)$(LIBDIR)
 $(DESTDIR)$(SHAREDIR):
-	@echo '[01;35m  [DIR]   [01;37m$(SHAREDIR)[00m'
+	@echo '[01;35m  DIR >   [01;37m$(SHAREDIR)[00m'
 	$(Q)mkdir -p $(DESTDIR)$(SHAREDIR)
 $(DESTDIR)$(INCLUDEDIR):
-	@echo '[01;35m  [DIR]   [01;37m$(INCLUDEDIR)[00m'
+	@echo '[01;35m  DIR >   [01;37m$(INCLUDEDIR)[00m'
 	$(Q)mkdir -p $(DESTDIR)$(INCLUDEDIR)
-install: subdirs.install hash-file.install hash-file.o.install hash.o.install sha256/sha256.o.install vec/vec.o.install
+install: subdirs.install hash-file.install server.install hash-file.o.install hash.o.install sha256/sha256.o.install vec/vec.o.install net.o.install hash.o.install sha256/sha256.o.install vec/vec.o.install server.o.install
 	@:
 
 subdirs.install:
 
-uninstall: subdirs.uninstall hash-file.uninstall hash-file.o.uninstall hash.o.uninstall sha256/sha256.o.uninstall vec/vec.o.uninstall
+uninstall: subdirs.uninstall hash-file.uninstall server.uninstall hash-file.o.uninstall hash.o.uninstall sha256/sha256.o.uninstall vec/vec.o.uninstall net.o.uninstall hash.o.uninstall sha256/sha256.o.uninstall vec/vec.o.uninstall server.o.uninstall
 	@:
 
 subdirs.uninstall:
@@ -112,7 +153,7 @@ test: all subdirs subdirs.test
 
 subdirs.test:
 
-clean: hash-file.clean hash-file.o.clean hash.o.clean sha256/sha256.o.clean vec/vec.o.clean
+clean: hash-file.clean server.clean hash-file.o.clean hash.o.clean sha256/sha256.o.clean vec/vec.o.clean net.o.clean hash.o.clean sha256/sha256.o.clean vec/vec.o.clean server.o.clean
 
 distclean: clean
 
@@ -125,42 +166,57 @@ distdir:
 
 dist-gz: $(PACKAGE)-$(VERSION).tar.gz
 $(PACKAGE)-$(VERSION).tar.gz: distdir
-	@echo '[01;33m  [TAR]   [01;37m$(PACKAGE)-$(VERSION).tar.gz[00m'
+	@echo '[01;33m  TAR >   [01;37m$(PACKAGE)-$(VERSION).tar.gz[00m'
 	$(Q)tar czf $(PACKAGE)-$(VERSION).tar.gz \
+		$(PACKAGE)-$(VERSION)/Makefile \
+		$(PACKAGE)-$(VERSION)/project.zsh \
+		$(PACKAGE)-$(VERSION)/net.c \
+		$(PACKAGE)-$(VERSION)/server.c \
 		$(PACKAGE)-$(VERSION)/hash-file.c \
 		$(PACKAGE)-$(VERSION)/hash.c \
 		$(PACKAGE)-$(VERSION)/sha256/sha256.c \
 		$(PACKAGE)-$(VERSION)/vec/vec.c \
+		$(PACKAGE)-$(VERSION)/net.h \
 		$(PACKAGE)-$(VERSION)/hash.h \
 		$(PACKAGE)-$(VERSION)/sha256/sha256.h \
 		$(PACKAGE)-$(VERSION)/vec/vec.h
 
 dist-xz: $(PACKAGE)-$(VERSION).tar.xz
 $(PACKAGE)-$(VERSION).tar.xz: distdir
-	@echo '[01;33m  [TAR]   [01;37m$(PACKAGE)-$(VERSION).tar.xz[00m'
+	@echo '[01;33m  TAR >   [01;37m$(PACKAGE)-$(VERSION).tar.xz[00m'
 	$(Q)tar cJf $(PACKAGE)-$(VERSION).tar.xz \
+		$(PACKAGE)-$(VERSION)/Makefile \
+		$(PACKAGE)-$(VERSION)/project.zsh \
+		$(PACKAGE)-$(VERSION)/net.c \
+		$(PACKAGE)-$(VERSION)/server.c \
 		$(PACKAGE)-$(VERSION)/hash-file.c \
 		$(PACKAGE)-$(VERSION)/hash.c \
 		$(PACKAGE)-$(VERSION)/sha256/sha256.c \
 		$(PACKAGE)-$(VERSION)/vec/vec.c \
+		$(PACKAGE)-$(VERSION)/net.h \
 		$(PACKAGE)-$(VERSION)/hash.h \
 		$(PACKAGE)-$(VERSION)/sha256/sha256.h \
 		$(PACKAGE)-$(VERSION)/vec/vec.h
 
 dist-bz2: $(PACKAGE)-$(VERSION).tar.bz2
 $(PACKAGE)-$(VERSION).tar.bz2: distdir
-	@echo '[01;33m  [TAR]   [01;37m$(PACKAGE)-$(VERSION).tar.bz2[00m'
+	@echo '[01;33m  TAR >   [01;37m$(PACKAGE)-$(VERSION).tar.bz2[00m'
 	$(Q)tar cjf $(PACKAGE)-$(VERSION).tar.bz2 \
+		$(PACKAGE)-$(VERSION)/Makefile \
+		$(PACKAGE)-$(VERSION)/project.zsh \
+		$(PACKAGE)-$(VERSION)/net.c \
+		$(PACKAGE)-$(VERSION)/server.c \
 		$(PACKAGE)-$(VERSION)/hash-file.c \
 		$(PACKAGE)-$(VERSION)/hash.c \
 		$(PACKAGE)-$(VERSION)/sha256/sha256.c \
 		$(PACKAGE)-$(VERSION)/vec/vec.c \
+		$(PACKAGE)-$(VERSION)/net.h \
 		$(PACKAGE)-$(VERSION)/hash.h \
 		$(PACKAGE)-$(VERSION)/sha256/sha256.h \
 		$(PACKAGE)-$(VERSION)/vec/vec.h
 
 help:
-	@echo '[01;37m :: test-0.0.1[00m'
+	@echo '[01;37m :: rp-0.0.1[00m'
 	@echo ''
 	@echo '[01;37mGeneric targets:[00m'
 	@echo '[00m    - [01;32mhelp          [37m Prints this help message.[00m'
@@ -183,6 +239,7 @@ help:
 	@echo ''
 	@echo '[01;37mProject targets: [00m'
 	@echo '    - [01;33mhash-file     [37m binary[00m'
+	@echo '    - [01;33mserver        [37m binary[00m'
 	@echo ''
 	@echo '[01;37mMakefile options:[00m'
 	@echo '    - gnu:           true'
