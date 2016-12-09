@@ -26,7 +26,7 @@ net_error ( int err )
 
 
 //init struct net
-int net_init   ( struct net * restrict net, const short port, const char * restrict ip6, int mode, int version )
+int net_init   ( struct net * restrict net, const short port, const char * restrict ip, int mode, int version )
 {
 	int err = 0; // error return
 
@@ -55,14 +55,14 @@ int net_init   ( struct net * restrict net, const short port, const char * restr
 	if ( mode == NET_CLIENT )
 	{
 		if ( version == NET_IPV6 )
-			err = inet_pton(AF_INET6, ip6, &(net->addr.v6.sin6_addr));
+			err = inet_pton(AF_INET6, ip, &(net->addr.v6.sin6_addr));
 		else
-			err = inet_pton(AF_INET, ip6, &(net->addr.v4.sin_addr));
+			err = inet_pton(AF_INET, ip, &(net->addr.v4.sin_addr));
 
 		if ( err != 1 )
 			return NET_ERR_INIT_ADDR;
 
-		printf("Init on address %s and %d port.\n", ip6, port);
+		printf("Init on address %s and %d port.\n", ip, port);
 
 	}
 
@@ -94,13 +94,13 @@ int net_init   ( struct net * restrict net, const short port, const char * restr
 
 
 // Lazy init for server and client
-int net_client ( struct net * restrict net, const short port, const char * restrict ip6, int version )
+int net_client ( struct net * restrict net, const short port, const char * restrict ip, int version )
 {
-	return net_init(net, port, ip6, NET_CLIENT, version);
+	return net_init(net, port, ip, NET_CLIENT, version);
 }
 int net_server ( struct net * restrict net, const short port, const char * restrict ip6, int version )
 {
-	return net_init(net, port, ip6, NET_SERVER, version);
+	return net_init(net, port, ip, NET_SERVER, version);
 }
 
 
