@@ -19,35 +19,37 @@ typedef enum {
 	REQUEST_GET_ANSWER,
 	REQUEST_LIST,
 	REQUEST_LIST_ANSWER,
+	REQUEST_PUT,
+	REQUEST_PUT_ACK,
 
 	/* Debug/orz */
 	REQUEST_PRINT
 } RequestType;
 
-typedef struct {
+typedef struct __attribute__((__packed__)) {
 	unsigned char type;
 	unsigned char file_hash[32];
 	unsigned char chunk_hash[32];
 } RequestGet;
 
-typedef struct {
+typedef struct __attribute__((__packed__)) {
 	unsigned char type;
 	unsigned file_hash[32];
 } RequestList;
 
-typedef struct {
+typedef struct __attribute__((__packed__)) {
 	unsigned char type;
 	unsigned char file_hash[32];
 	uint16_t chunks_count;
 	unsigned char chunk_hashes[32][0];
 } RequestListAnswer;
 
-typedef struct {
+typedef struct __attribute__((__packed__)) {
 	unsigned char type;
 	unsigned char chunk_hash[32];
 } RequestPut;
 
-typedef struct {
+typedef struct __attribute__((__packed__)) {
 	unsigned char type;
 	unsigned char chunk_hash[32];
 } RequestPutAck;
