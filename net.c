@@ -1,4 +1,6 @@
 #include "net.h"
+#include "vec/vec.h"
+
 
 //print errors and exit
 void
@@ -26,7 +28,8 @@ net_error ( int err )
 
 
 //init struct net
-int net_init   ( struct net * restrict net, const short port, const char * restrict ip, int mode, int version )
+int
+net_init   ( struct net * restrict net, const short port, const char * restrict ip, int mode, int version )
 {
 	int err = 0; // error return
 
@@ -40,38 +43,39 @@ int net_init   ( struct net * restrict net, const short port, const char * restr
 	net->fd = -1;
 
 	//set in memory sockaddr_in6 + init sockaddr_in6
-	memset( (char*)&(net->addr), 0, sizeof(net->addr));
-	if ( version == NET_IPV6 )
-	{
+	if (version == NET_IPV6 )
+	{		
+		memset( (char*)&(net->addr), 0, sizeof(net->addr));
 		net->addr.v6.sin6_family = AF_INET6;
 		net->addr.v6.sin6_port   = htons(port);
 	}
-	else
+	else // set in memory sockaddr_in + init socckaddr_in
 	{
+		memset( (char*)&(net->addr), 0, sizeof(net->addr));
 		net->addr.v4.sin_family = AF_INET;
 		net->addr.v4.sin_port   = htons(port);
 	}
 
-	if ( mode == NET_CLIENT )
+	// copy of @ip
+	if ( version == NET_IPV6 )
 	{
-		if ( version == NET_IPV6 )
-			err = inet_pton(AF_INET6, ip, &(net->addr.v6.sin6_addr));
-		else
-			err = inet_pton(AF_INET, ip, &(net->addr.v4.sin_addr));
-
-		if ( err != 1 )
-			return NET_ERR_INIT_ADDR;
-
-		printf("Init on address %s and %d port.\n", ip, port);
-
+		err = inet_pton( AF_INET6, ip, &(net->addr.v6.sin6_addr) );
+	}
+	else
+	{
+		err = inet_pton( AF_INET , ip, &(net->addr.v4.sin_addr));
 	}
 
+	// err if @ip can't be copying
+	if ( err != 1 )
+		return NET_ERR_INIT_ADDR;
+	printf("Init on address %s and %d port.\n", ip, port);
+
 	//init socket UDP - ipV6
-	if ( version == NET_IPV6)
+	if (version == NET_IPV6)
 		net->fd = socket(AF_INET6, SOCK_DGRAM, 0);
 	else
-		net->fd = socket(AF_INET, SOCK_DGRAM, 0);
-
+		net->fd = socket(AF_INET , SOCK_DGRAM, 0);
 
 	if ( net->fd == -1 )
 		return NET_ERR_INIT_SOCK;
@@ -87,32 +91,38 @@ int net_init   ( struct net * restrict net, const short port, const char * restr
 
 		if ( err < 0 )
 			return NET_ERR_INIT_BIND;
+		vec_init( &(net->data) );
 	}
+
 
 	return NET_OK;
 }
 
 
 // Lazy init for server and client
-int net_client ( struct net * restrict net, const short port, const char * restrict ip, int version )
+int
+net_client ( struct net * net, const short port, const char * ip6, int version )
 {
-	return net_init(net, port, ip, NET_CLIENT, version);
+	return net_init(net, port, ip6, NET_CLIENT, version );
 }
-int net_server ( struct net * restrict net, const short port, const char * restrict ip6, int version )
+
+
+int
+net_server ( struct net * net, const short port, const char * ip6, int version )
 {
-	return net_init(net, port, ip, NET_SERVER, version);
+	return net_init(net, port, ip6, NET_SERVER, version);
 }
 
 
 // sendto with net structure
-
-ssize_t net_write ( struct net * restrict net, const void * restrict buf, size_t len, int flags )
+ssize_t
+net_write ( struct net * net, const void * buf, size_t len, int flags )
 {
 	//some check
 	if ( !net ) return NET_FAIL;
 	if ( net->mode != NET_SERVER && net->mode != NET_CLIENT ) return NET_FAIL;
 
-	ssize_t ret = 0;// return value
+	ssize_t ret = 0;// return idx
 
 	ret = sendto(
 			net->fd,
@@ -133,16 +143,63 @@ net_read ( struct net * net, void * buf, size_t len, int flags )
 	if ( !net ) return NET_FAIL;
 	if ( net->mode != NET_SERVER && net->mode != NET_CLIENT ) return NET_FAIL;
 
-	ssize_t ret = 0;//return value
+	struct sockaddr addr;
+	socklen_t l;
+
+	ssize_t ret = 0;//return idx
 	ret = recvfrom(
 			net->fd,
 			buf,
 			len,
 			flags,
-			(struct sockaddr *) &(net->addr),
-			&(net->addr_len)
+			&(addr),
+			&(l)
 		);
+
+	// TODO: fix read -1
+
+	if ( net->mode == NET_CLIENT )
+		return ret;
+
+
+	int idx = -1;
+
+	void * e;
+	vec_foreach( &(net->data), e, idx )
+	{
+		int check = 0;
+
+		if ( ((struct sockaddr *)(e))->sa_family != addr.sa_family )
+			break;
+
+		for ( int i = 0 ; i < 14 ; i++ )
+		{
+			if ( ((struct sockaddr *)(e))->sa_data[i] != addr.sa_data[i] )
+			{
+				check = -1;
+				break;
+			}
+		}
+		if (check != 0)
+			break;
+	}
+	if ( idx > net->data.length )
+		idx = -1;
+
+
+	if ( idx == -1 )
+	{
+		struct addr * new_addr = malloc(sizeof(addr));
+		memcpy(new_addr, &addr, sizeof(addr));
+
+		vec_push( &(net->data), (void*)(new_addr) );
+	}
 
 	return ret;
 }
 
+void
+net_shutdown ( struct net * net )
+{
+	vec_deinit( &(net->data) );
+}
