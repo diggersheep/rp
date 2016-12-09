@@ -13,8 +13,8 @@
 #define NET_SERVER 0
 #define NET_CLIENT 1
 //
-#define NET_IPV4 0
-#define NET_IPV6 1
+#define NET_IPV4 4
+#define NET_IPV6 6
 
 //error codes
 #define NET_OK    0 
@@ -50,13 +50,13 @@ struct net
 void net_error ( int err );
 
 //init
-int net_init   ( struct net * restrict net, const short port, const char * restrict ip6, int mode, int version );
+int net_init   ( struct net * restrict net, const short port, const char * restrict ip, int mode, int version );
 //lazy init
-int net_client ( struct net * restrict net, const short port, const char * restrict ip6, int version );
-int net_server ( struct net * restrict net, const short port, const char * restrict ip6, int version );
+int net_client ( struct net * restrict net, const short port, const char * restrict ip, int version );
+int net_server ( struct net * restrict net, const short port, const char * restrict ip, int version );
 
 
-void net_shutdown ( struct net * net );
+int net_shutdown ( struct net * net );
 
 //sendto and recvfrom with "struct net" structure
 ssize_t net_write ( struct net * restrict net, const void * restrict buf, size_t len, int flags );
