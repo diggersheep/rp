@@ -26,12 +26,7 @@ net_error ( int err )
 
 
 //init struct net
-int
-net_init(
-	struct net * net, // struct net uninitialize
-	const short port, // port 
-	const char * ip6, // ipv6 in string
-	int mode)         // NET_CLIENT | NET_SERVER
+int net_init   ( struct net * restrict net, const short port, const char * restrict ip6, int mode, int version )
 {
 	int err = 0; // error return
 
@@ -46,12 +41,23 @@ net_init(
 
 	//set in memory sockaddr_in6 + init sockaddr_in6
 	memset( (char*)&(net->addr), 0, sizeof(net->addr));
-	net->addr.sin6_family = AF_INET6;
-	net->addr.sin6_port   = htons(port);
+	if ( version == NET_IPV6 )
+	{
+		net->addr.v6.sin6_family = AF_INET6;
+		net->addr.v6.sin6_port   = htons(port);
+	}
+	else
+	{
+		net->addr.v4.sin_family = AF_INET;
+		net->addr.v4.sin_port   = htons(port);
+	}
 
 	if ( mode == NET_CLIENT )
 	{
-		err = inet_pton(AF_INET6, ip6, &(net->addr.sin6_addr));
+		if ( version == NET_IPV6 )
+			err = inet_pton(AF_INET6, ip6, &(net->addr.v6.sin6_addr));
+		else
+			err = inet_pton(AF_INET, ip6, &(net->addr.v4.sin_addr));
 
 		if ( err != 1 )
 			return NET_ERR_INIT_ADDR;
@@ -61,7 +67,12 @@ net_init(
 	}
 
 	//init socket UDP - ipV6
-	net->fd = socket(AF_INET6, SOCK_DGRAM, 0);
+	if ( version == NET_IPV6)
+		net->fd = socket(AF_INET6, SOCK_DGRAM, 0);
+	else
+		net->fd = socket(AF_INET, SOCK_DGRAM, 0);
+
+
 	if ( net->fd == -1 )
 		return NET_ERR_INIT_SOCK;
 
@@ -83,21 +94,19 @@ net_init(
 
 
 // Lazy init for server and client
-int
-net_client ( struct net * net, const short port, const char * ip6 )
+int net_client ( struct net * restrict net, const short port, const char * restrict ip6, int version )
 {
-	return net_init(net, port, ip6, NET_CLIENT);
+	return net_init(net, port, ip6, NET_CLIENT, version);
 }
-int
-net_server ( struct net * net, const short port, const char * ip6 )
+int net_server ( struct net * restrict net, const short port, const char * restrict ip6, int version )
 {
-	return net_init(net, port, ip6, NET_SERVER);
+	return net_init(net, port, ip6, NET_SERVER, version);
 }
 
 
 // sendto with net structure
-ssize_t
-net_write ( struct net * net, const void * buf, size_t len, int flags )
+
+ssize_t net_write ( struct net * restrict net, const void * restrict buf, size_t len, int flags )
 {
 	//some check
 	if ( !net ) return NET_FAIL;
