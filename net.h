@@ -46,14 +46,14 @@ struct net
 void net_error ( int err );
 
 //init
-int net_init   ( struct net * net, const short port, const char * ip6, int mode, int version );
+int net_init   ( struct net * restrict net, const short port, const char * restrict ip6, int mode, int version );
 //lazy init
-int net_client ( struct net * net, const short port, const char * ip6, int version );
-int net_server ( struct net * net, const short port, const char * ip6, int version );
+int net_client ( struct net * restrict net, const short port, const char * restrict ip6, int version );
+int net_server ( struct net * restrict net, const short port, const char * restrict ip6, int version );
 
 //sendto and recvfrom with "struct net" structure
-ssize_t net_write ( struct net * net, const void * buf, size_t len, int flags );
-ssize_t net_read  ( struct net * net,       void * buf, size_t len, int flags );
+ssize_t net_write ( struct net * restrict net, const void * restrict buf, size_t len, int flags );
+ssize_t net_read  ( struct net * restrict net,       void * restrict buf, size_t len, int flags );
 
 
 #endif
