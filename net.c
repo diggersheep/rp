@@ -33,6 +33,7 @@ net_init   ( struct net * restrict net, const short port, const char * restrict 
 {
 	int err = 0; // error return
 
+
 	// check mode
 	if ( mode != NET_SERVER && mode != NET_CLIENT)
 		return NET_ERR_INIT_MODE;
@@ -41,6 +42,7 @@ net_init   ( struct net * restrict net, const short port, const char * restrict 
 	net->addr_len = sizeof(net->addr);
 	net->mode     = mode;
 	net->fd       = -1;
+	net->current  = NULL;
 
 	//set in memory sockaddr_in6 + init sockaddr_in6
 	if (version == NET_IPV6 )
@@ -194,6 +196,8 @@ net_read ( struct net * net, void * buf, size_t len, int flags )
 		vec_push( &(net->data), (void*)(new_addr) );
 	}
 
+	net->current = &addr;
+
 	return ret;
 }
 
@@ -205,11 +209,14 @@ net_shutdown ( struct net * net )
 	{
 		printf("client vector\n");
 
-		for ( int i = 0 ; i < net->data.length ; i++ )
-		{
-			printf("  - %d\n", i);
-		}
 
+		int i = 0;
+		void * e;
+		vec_foreach ( &(net->data), e, i )
+		{
+			if ( e != NULL )
+				free(e);
+		}
 		vec_deinit( &(net->data) );
 	}
 

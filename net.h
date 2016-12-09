@@ -44,6 +44,7 @@ struct net
 	socklen_t    addr_len;
 
 	vec_void_t data;
+	struct sockaddr * current;
 };
 
 //print errors and exit the program
