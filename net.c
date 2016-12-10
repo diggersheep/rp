@@ -150,7 +150,6 @@ net_write ( struct net * net, const void * buf, size_t len, int flags )
 		}
 	}
 
-
 	return ret;
 }
 
@@ -163,7 +162,7 @@ net_read ( struct net * net, void * buf, size_t len, int flags )
 	if ( net->mode != NET_SERVER && net->mode != NET_CLIENT ) return NET_FAIL;
 
 	struct sockaddr addr;
-	socklen_t l = sizeof(addr);
+	socklen_t l = -1;
 
 	ssize_t ret = 0;//return idx
 	ret = recvfrom(
@@ -179,7 +178,6 @@ net_read ( struct net * net, void * buf, size_t len, int flags )
 
 	if ( net->mode == NET_CLIENT )
 		return ret;
-
 
 	int idx = -1;
 
@@ -205,8 +203,12 @@ net_read ( struct net * net, void * buf, size_t len, int flags )
 	if ( idx > net->data.length )
 		idx = -1;
 
-	struct sockaddr * new_addr = malloc(sizeof(struct sockaddr_in6));
-	memcpy(new_addr, &addr, sizeof(struct sockaddr_in6));
+	if ( l < 1 )
+		return 1;
+
+
+	struct sockaddr * new_addr = malloc(l);
+	memcpy(new_addr, &addr, l);
 
 	if ( idx == -1 )
 	{
