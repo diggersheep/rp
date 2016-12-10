@@ -4,7 +4,6 @@
 #include "net.h"
 #include "common.h"
 #include "hash.h"
-#include "hash-file.h"
 
 
 int send_put_all ( struct net * net, const char * filename )
@@ -14,7 +13,7 @@ int send_put_all ( struct net * net, const char * filename )
 
 int send_put ( struct net * net, const char * hash )
 {
-	
+
 }
 
 int
