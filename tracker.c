@@ -51,9 +51,16 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes)
 	RequestPut* datagram = (void*) buffer;
 	int hashExists = 0;
 
-	printf("<");
-	print_hash(datagram->hash_segment.hash);
-	printf(">\n");
+	if (1) {
+		printf("<");
+		print_hash(datagram->hash_segment.hash);
+		printf(">\n");
+
+		struct sockaddr_in* in = (void*) net->current;
+		char address[INET6_ADDRSTRLEN];
+		inet_ntop(net->current->sa_family, &in->sin_addr, address, sizeof(address));
+		printf(" from %s\n", address);
+	}
 
 	int r =
 		check_segment_file_hash(&datagram->hash_segment) &&
@@ -68,22 +75,9 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes)
 	int i;
 	RegisteredHash* rh;
 
-	if (1) {
-		char address[INET6_ADDRSTRLEN];
-		/* NIKSAMÈR */
-		inet_ntop(net->current->sa_family, net->current->sa_data + 2, address, sizeof(address));
-		printf("<%s>\n", address);
-	}
-
 	vec_foreach (registered_hashes, rh, i) {
 		int sameHash = memcmp(rh->hash, datagram->hash_segment.hash, sizeof(rh->hash)) == 0;
 		int sameHost = memcmp(&rh->client, net->current, sizeof(*net->current));
-
-		if (1) {
-			char address[INET6_ADDRSTRLEN];
-			inet_ntop(rh->client.sa_family, &rh->client, address, sizeof(address));
-			printf("<%s>\n", address);
-		}
 
 		if (sameHash && sameHost) {
 			hashExists = 1;
@@ -173,6 +167,7 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 
 				printf("IPv4 client: %s\n", address);
 
+				answer->count += 1;
 				currentClient += sizeof(SegmentClient4);
 			} else if (rh->client.sa_family == AF_INET6) {
 				SegmentClient6* client = (void*) currentClient;
@@ -186,13 +181,16 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 
 				printf("IPv6 client: %s\n", address);
 
+				answer->count += 1;
 				currentClient += sizeof(SegmentClient6);
 			} else {
-				orz("Unexpected protocol in registered client [%s, sa_family=%d]",
+				orz("Unexpected protocol in registered client (%s, sa_family=%d)",
 					address, rh->client.sa_family);
 			}
 		}
 	}
+
+	net_write(net, answer, sizeof(*answer) + (((char*) answer->clients) - (char*) currentClient), 0);
 }
 
 int
@@ -266,7 +264,7 @@ main(int argc, const char** argv)
 			case REQUEST_GET_ACK:
 			case REQUEST_LIST_ANSWER:
 			case REQUEST_PUT_ACK:
-				printf("Got an unhandled request [type=%u].\n", type);
+				orz("Got an unhandled request (type = %u).", type);
 				break;
 			case REQUEST_EC:
 				if (1) {
