@@ -6,6 +6,101 @@
 #include "net.h"
 #include "tracker.h"
 
+void
+handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes)
+{
+	RequestPut* datagram = (void*) buffer;
+	int hashExists = 0;
+
+	printf("<");
+	print_hash(datagram->chunk_hash);
+	printf(">\n");
+
+	for (int i = 0; i < 4; i++)
+		printf("%i\n", (unsigned char) net->current->sa_data[i + 2]);
+
+	int i;
+	RegisteredHash* rh;
+
+	if (1) {
+		char address[INET6_ADDRSTRLEN];
+		/* NIKSAMÈR */
+		inet_ntop(net->current->sa_family, net->current->sa_data + 2, address, sizeof(address));
+		printf("<%s>\n", address);
+	}
+
+	vec_foreach (registered_hashes, rh, i) {
+		int sameHash = memcmp(rh->hash, datagram->chunk_hash, sizeof(rh->hash)) == 0;
+		int sameHost = memcmp(&rh->client, net->current, sizeof(*net->current));
+
+		if (1) {
+			char address[INET6_ADDRSTRLEN];
+			inet_ntop(rh->client.sa_family, &rh->client, address, sizeof(address));
+			printf("<%s>\n", address);
+		}
+
+		if (sameHash && sameHost) {
+			hashExists = 1;
+
+			break;
+		}
+	}
+
+	if (!hashExists) {
+		RegisteredHash* rh;
+
+		rh = malloc(sizeof(*rh));
+
+		memcpy(rh->hash, datagram->chunk_hash, sizeof(rh->hash));
+		memcpy(&rh->client, net->current, sizeof(rh->client));
+
+		vec_push(registered_hashes, rh);
+
+		puts("chunk registered\n");
+	} else {
+		puts("hash was put but already registered\n");
+	}
+}
+
+void
+handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
+{
+	RequestList* datagram = (void*) buffer;
+	char answer_buffer[CHUNK_SIZE + sizeof(RequestListAnswer)];
+	RequestListAnswer* answer = (void*) answer_buffer;
+	size_t answer_size = sizeof(unsigned char);
+
+	answer->type = REQUEST_LIST_ANSWER;
+
+	int i;
+	RegisteredHash* rh;
+	char address[INET6_ADDRSTRLEN];
+
+	/* Chunk size should probably be enough. */
+	answer = malloc(sizeof(*answer) + CHUNK_SIZE);
+
+	vec_foreach (registered_hashes, rh, i) {
+		if (!memcmp(rh->hash, datagram->file_hash, sizeof(*rh->hash))) {
+			inet_ntop(rh->client.sa_family, &rh->client, address, sizeof(address));
+
+			printf("  -> %s [", address);
+			print_hash(rh->hash);
+			puts("] ");
+
+			if (rh->client.sa_family == AF_INET) {
+				printf("%s", address);
+			} else if (rh->client.sa_family == AF_INET6) {
+				printf("%s", address);
+			} else {
+				printf("%s", address);
+				fprintf(stderr, "ohshit() unimplemented.\n");
+			}
+
+			puts("\n");
+		}
+	}
+}
+
 int
 main(int argc, const char** argv)
 {
@@ -32,99 +127,11 @@ main(int argc, const char** argv)
 		/* FIXME: For each case, assert() that count is more than the matching expected datagram size. */
 		switch (type) {
 			case REQUEST_PUT:
-				/* FIXME: Insufficient debug. */
-				if (1) {
-					RequestPut* datagram = (void*) buffer;
-					int hashExists = 0;
-
-					printf("<");
-					print_hash(datagram->chunk_hash);
-					printf(">\n");
-
-					for (int i = 0; i < 4; i++)
-						printf("%i\n", (unsigned char) net.current->sa_data[i + 2]);
-
-					int i;
-					RegisteredHash* rh;
-
-					if (1) {
-						char address[INET6_ADDRSTRLEN];
-						/* NIKSAMÈR */
-						inet_ntop(net.current->sa_family, &net.current->sa_data[2], address, sizeof(address));
-						printf("<%s>\n", address);
-					}
-
-					vec_foreach (&registered_hashes, rh, i) {
-						int sameHash = memcmp(rh->hash, datagram->chunk_hash, sizeof(rh->hash)) == 0;
-						int sameHost = memcmp(&rh->client, net.current, sizeof(*net.current));
-
-						if (1) {
-							char address[INET6_ADDRSTRLEN];
-							inet_ntop(rh->client.sa_family, &rh->client, address, sizeof(address));
-							printf("<%s>\n", address);
-						}
-
-						if (sameHash && sameHost) {
-							hashExists = 1;
-
-							break;
-						}
-					}
-
-					if (!hashExists) {
-						RegisteredHash* rh;
-
-						rh = malloc(sizeof(*rh));
-
-						memcpy(rh->hash, datagram->chunk_hash, sizeof(rh->hash));
-						memcpy(&rh->client, net.current, sizeof(rh->client));
-
-						vec_push(&registered_hashes, rh);
-
-						puts("chunk registered\n");
-					} else {
-						puts("hash was put but already registered\n");
-					}
-				}
+				handle_put(&net, buffer, &registered_hashes);
 				break;
 			case REQUEST_GET:
 				printf("Client sent GET request…\n");
-				if (1) {
-					RequestList* datagram = (void*) buffer;
-					char answer_buffer[CHUNK_SIZE + sizeof(RequestListAnswer)];
-					RequestListAnswer* answer = (void*) answer_buffer;
-					size_t answer_size = sizeof(unsigned char);
-
-					answer->type = REQUEST_LIST_ANSWER;
-
-					int i;
-					RegisteredHash* rh;
-					char address[INET6_ADDRSTRLEN];
-
-					/* Chunk size should probably be enough. */
-					answer = malloc(sizeof(*answer) + CHUNK_SIZE);
-
-					vec_foreach (&registered_hashes, rh, i) {
-						if (!memcmp(rh->hash, datagram->file_hash, sizeof(*rh->hash))) {
-							inet_ntop(rh->client.sa_family, &rh->client, address, sizeof(address));
-
-							printf("  -> %s [", address);
-							print_hash(rh->hash);
-							puts("] ");
-
-							if (rh->client.sa_family == AF_INET) {
-								printf("%s", address);
-							} else if (rh->client.sa_family == AF_INET6) {
-								printf("%s", address);
-							} else {
-								printf("%s", address);
-								fprintf(stderr, "ohshit() unimplemented.\n");
-							}
-
-							puts("\n");
-						}
-					}
-				}
+				handle_get(&net, buffer, &registered_hashes);
 			case REQUEST_LIST:
 				break;
 				if (1) {
