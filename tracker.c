@@ -105,6 +105,7 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 
 			rh = malloc(sizeof(*rh));
 
+			rh->time_to_live = 60;
 			memcpy(rh->hash, datagram->hash_segment.hash, sizeof(rh->hash));
 			memcpy(&rh->client, net->current, sizeof(rh->client));
 
@@ -217,16 +218,67 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 	net_write(net, answer, sizeof(*answer) + (((char*) answer->clients) - (char*) currentClient), 0);
 }
 
+void
+handle_timeout(vec_void_t* registered_hashes)
+{
+	int i;
+	RegisteredHash* rh;
+	struct net net;
+
+	char buffer[sizeof(RequestEC) + sizeof(SegmentFileHash)];
+	RequestEC* ec = (void*) buffer;
+	SegmentFileHash* hash_segment;
+
+	ec->type = REQUEST_EC;
+	ec->subtype = REQUEST_EC_TIMEOUT;
+	ec->size = sizeof(SegmentFileHash);
+
+	vec_foreach_rev(registered_hashes, rh, i) {
+		if (--rh->time_to_live <= 0) {
+			struct sockaddr_in* saddr = (void*) &rh->client;
+			char buffer[128];
+
+			inet_ntop(saddr->sin_family, (void*) &saddr->sin_addr, buffer, 128);
+
+			if (saddr->sin_family == AF_INET) {
+				net_client(&net, saddr->sin_port, buffer, saddr->sin_family);
+			} else {
+				net_client(&net, saddr->sin_port, buffer, saddr->sin_family);
+			}
+
+			hash_segment = (void*) ec->data;
+			hash_segment->c = 50;
+			hash_segment->size = 32;
+			memcpy(&hash_segment->hash, rh->hash, 32);
+
+			net_write(&net, (void*) &ec, sizeof(RequestEC) + sizeof(SegmentFileHash), 0);
+
+			net_shutdown(&net);
+
+			if (i != registered_hashes->length - 1) {
+				registered_hashes->data[i] = registered_hashes->data[registered_hashes->length-1];
+			}
+
+			vec_pop(registered_hashes);
+
+			wtf("hash expired");
+		} else
+			wtf("[ttl=%d]", rh->time_to_live);
+	}
+}
+
 int
 main(int argc, const char** argv)
 {
 	struct net net;
-	size_t count;
+	int count;
 
 	vec_void_t registered_hashes;
 
 	/* Buffer of maximum possible packet size. */
 	char buffer[CHUNK_SIZE + sizeof(unsigned char) + sizeof(uint16_t)];
+
+	struct timeval timeout = {1, 0};
 
 	(void) argc;
 	(void) argv;
@@ -241,10 +293,20 @@ main(int argc, const char** argv)
 		return 1;
 	}
 
-	while ((count = net_read(&net, buffer, sizeof(buffer), 0)) > 0) {
+	net_set_timeout(&net, &timeout);
+
+	while ((count = net_read(&net, buffer, sizeof(buffer), 0)) >= 0) {
+		if (count == 0) {
+			handle_timeout(&registered_hashes);
+
+			timeout.tv_sec = 1;
+
+			continue;
+		}
+
 		RequestType type = buffer[0];
 
-		printf("%zu: ", count);
+		printf("%d: ", count);
 
 		/* FIXME: For each case, assert() that count is more than the matching expected datagram size. */
 		switch (type) {
@@ -270,7 +332,7 @@ main(int argc, const char** argv)
 						print_hash(rh->hash);
 
 						inet_ntop(rh->client.sa_family, &rh->client, address, sizeof(address));
-						printf(" <%s>\n", address);
+						printf(" <%s>, ttl=%d\n", address, rh->time_to_live);
 
 						puts("\n");
 					}
