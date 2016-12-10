@@ -8,10 +8,21 @@
 #include "net.h"
 #include "tracker.h"
 
-void
-orz(const char str[static 1])
+int
+orz(const char *restrict fmt, ...)
 {
-	fprintf(stderr, "\027[01;31m> %s\027[00m\n", str);
+	int ret;
+	va_list ap;
+
+	fputs("\027[01;31m> ", stdin);
+
+	va_start(ap, fmt);
+	ret = vfprintf(stdout, fmt, ap);
+	va_end(ap);
+
+	fputs("\n", stdin);
+
+	return ret;
 }
 
 bool
