@@ -64,5 +64,4 @@ ssize_t net_write ( struct net * restrict net, const void * restrict buf, size_t
 ssize_t net_read  ( struct net * restrict net,       void * restrict buf, size_t len, int flags );
 
 
-
 #endif
