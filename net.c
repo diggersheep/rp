@@ -49,21 +49,13 @@ net_init   ( struct net * restrict net, const short port, const char * restrict 
 		memset( (char*)&(net->addr), 0, sizeof(net->addr));
 		net->addr.v6.sin6_family = AF_INET6;
 		net->addr.v6.sin6_port   = htons(port);
+		err = inet_pton( AF_INET6, ip, &(net->addr.v6.sin6_addr) );
 	}
 	else // set in memory sockaddr_in + init socckaddr_in
 	{
 		memset( (char*)&(net->addr), 0, sizeof(net->addr));
 		net->addr.v4.sin_family = AF_INET;
 		net->addr.v4.sin_port   = htons(port);
-	}
-
-	// copy of @ip
-	if ( version == NET_IPV6 )
-	{
-		err = inet_pton( AF_INET6, ip, &(net->addr.v6.sin6_addr) );
-	}
-	else
-	{
 		err = inet_pton( AF_INET , ip, &(net->addr.v4.sin_addr));
 	}
 
@@ -97,6 +89,7 @@ net_init   ( struct net * restrict net, const short port, const char * restrict 
 
 	net->version = version;
 
+
 	return NET_OK;
 }
 
@@ -126,14 +119,38 @@ net_write ( struct net * net, const void * buf, size_t len, int flags )
 
 	ssize_t ret = 0;// return idx
 
-	ret = sendto(
+	if ( net->mode == NET_CLIENT )
+	{
+		ret = sendto(
 			net->fd,
 			buf,
 			len,
 			flags,
-			(struct sockaddr *) &(net->current),
+			(struct sockaddr *) &(net->addr),
 			net->addr_len
 		);
+	}
+	else
+	{	
+		if ( net->current )		
+		{
+			printf("write srv %p\n", net->current);
+			ret = sendto(
+					net->fd,
+					buf,
+					len,
+					flags,
+					(struct sockaddr *) &(net->current),
+					net->addr_len
+				);
+		}
+		else
+		{
+			printf("err\n");
+		}
+	}
+
+
 	return ret;
 }
 

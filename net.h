@@ -7,7 +7,12 @@
 
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <sys/select.h>
 #include <arpa/inet.h>
+
+#include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 //mode for init function
 #define NET_SERVER 0
@@ -25,6 +30,8 @@
 #define NET_ERR_INIT_SOCK 3
 #define NET_ERR_INIT_BIND 4
 
+
+
 #include "vec/vec.h"
 
 union s_addr
@@ -32,6 +39,14 @@ union s_addr
 	struct sockaddr_in6 v6;
 	struct sockaddr_in  v4;
 };
+
+typedef struct
+{
+	fd_set read;
+	fd_set write;
+	int max;
+}
+fd_select;
 
 struct net
 {
@@ -47,6 +62,8 @@ struct net
 
 	vec_void_t data;
 	struct sockaddr * current;
+
+	fd_select select;
 };
 
 //print errors and exit the program
