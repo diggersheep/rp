@@ -134,7 +134,7 @@ net_write ( struct net * net, const void * buf, size_t len, int flags )
 	{
 		if ( !!net->current && ( net->current_len == sizeof(struct sockaddr_in6) || net->current_len == sizeof(struct sockaddr_in)) )
 		{
-			ret = sendto(net->fd, buf, len, flags, (struct sockaddr *)&net->addr, net->current_len);
+			ret = sendto(net->fd, buf, len, flags, (struct sockaddr *)&net->current, net->current_len);
 		}
 		else
 		{
