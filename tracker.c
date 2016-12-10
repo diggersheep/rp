@@ -14,13 +14,13 @@ orz(const char *restrict fmt, ...)
 	int ret;
 	va_list ap;
 
-	fputs("\027[01;31m> ", stdin);
+	fputs("\027[01;31m> ", stderr);
 
 	va_start(ap, fmt);
-	ret = vfprintf(stdout, fmt, ap);
+	ret = vfprintf(stderr, fmt, ap);
 	va_end(ap);
 
-	fputs("\n", stdin);
+	fputs("\027[00m\n", stderr);
 
 	return ret;
 }
