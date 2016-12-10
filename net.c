@@ -205,14 +205,17 @@ net_read ( struct net * net, void * buf, size_t len, int flags )
 	if ( idx > net->data.length )
 		idx = -1;
 
-	struct sockaddr * new_addr = malloc(sizeof(addr));
-	memcpy(new_addr, &addr, sizeof(addr));
+	struct sockaddr * new_addr = malloc(sizeof(struct sockaddr_in6));
+	memcpy(new_addr, &addr, sizeof(struct sockaddr_in6));
 
 	if ( idx == -1 )
 	{
 		vec_push( &(net->data), (void*)(new_addr) );
 	}
 
+	if (net->current)
+		free(net->current);
+	
 	net->current = new_addr;
 
 	return ret;
