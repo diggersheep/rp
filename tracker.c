@@ -214,7 +214,7 @@ main(int argc, const char** argv)
 
 		vec_deinit(&registered_hashes);
 
-		return 0;
+		return 1;
 	}
 
 	while ((count = net_read(&net, buffer, sizeof(buffer), 0)) > 0) {
