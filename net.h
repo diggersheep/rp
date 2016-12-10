@@ -43,6 +43,8 @@ struct net
 	union s_addr addr;
 	socklen_t    addr_len;
 
+	int version;
+
 	vec_void_t data;
 	struct sockaddr * current;
 };
