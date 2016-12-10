@@ -95,6 +95,7 @@ net_init   ( struct net * restrict net, const short port, const char * restrict 
 		vec_init( &(net->data) );
 	}
 
+	net->version = version;
 
 	return NET_OK;
 }
@@ -130,7 +131,7 @@ net_write ( struct net * net, const void * buf, size_t len, int flags )
 			buf,
 			len,
 			flags,
-			(struct sockaddr *) &(net->addr),
+			(struct sockaddr *) &(net->current),
 			net->addr_len
 		);
 	return ret;
