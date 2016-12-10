@@ -112,14 +112,16 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes)
 
 		vec_push(registered_hashes, rh);
 
-		puts("chunk registered\n");
+		puts("chunk registered");
+
+		datagram->type = REQUEST_PUT_ACK;
 
 		/* PUT and PUT/ACK are the same exact datagrams. */
 		net_write(net, buffer, sizeof(RequestPut), 0);
 	} else {
 		RequestEC* answer = buffer;
 
-		puts("hash was put but already registered\n");
+		puts("hash was put but already registered");
 
 		answer->type = REQUEST_EC;
 		answer->subtype = 0;
