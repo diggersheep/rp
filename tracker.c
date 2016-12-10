@@ -31,7 +31,13 @@ bool
 check_segment_client(SegmentClient* s)
 {
 	if (s->v4.c != 55) {
-		orz("Received invalid client segment.");
+		orz("Received invalid client segment (c != 55).");
+
+		return false;
+	}
+
+	if (s->v4.ipv != 6 && s->v4.ipv != 18) {
+		orz("Received invalid client segment (ipv != 6 && ipv != 18).");
 
 		return false;
 	}
