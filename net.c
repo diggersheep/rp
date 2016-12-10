@@ -85,10 +85,10 @@ net_init   ( struct net * restrict net, const short port, const char * restrict 
 	if ( mode == NET_SERVER )
 	{
 		err = bind(
-				net->fd,
-				(struct sockaddr *) &(net->addr),
-				net->addr_len 
-			);
+			net->fd,
+			(struct sockaddr *) &(net->addr),
+			net->addr_len
+		);
 
 		if ( err < 0 )
 			return NET_ERR_INIT_BIND;
