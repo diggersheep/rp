@@ -1,10 +1,48 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <stdbool.h>
 
 #include "common.h"
 #include "hash.h"
 #include "net.h"
 #include "tracker.h"
+
+void
+orz(const char str[static 1])
+{
+	fprintf(stderr, "\027[01;31m> %s\027[00m\n", str);
+}
+
+bool
+check_segment_file_hash(SegmentFileHash* s)
+{
+	if (s->c != 50) {
+		orz("Received invalid file hash segment (c != 50).");
+
+		return false;
+	}
+
+	if (s->size != 32) {
+		orz("Received invalid file hash segment (size != 32).");
+
+		return false;
+	}
+
+	return true;
+}
+
+bool
+check_segment_client(SegmentClient* s)
+{
+	if (s->v4.c != 55) {
+		orz("Received invalid client segment.");
+
+		return false;
+	}
+
+	return true;
+}
 
 void
 handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes)
@@ -13,11 +51,18 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes)
 	int hashExists = 0;
 
 	printf("<");
-	print_hash(datagram->chunk_hash);
+	print_hash(datagram->hash_segment.hash);
 	printf(">\n");
 
-	for (int i = 0; i < 4; i++)
-		printf("%i\n", (unsigned char) net->current->sa_data[i + 2]);
+	int r =
+		check_segment_file_hash(&datagram->hash_segment) &&
+		check_segment_client(&datagram->client_segment);
+
+	if (!r) {
+		orz("Dropping PUT request.");
+
+		return;
+	}
 
 	int i;
 	RegisteredHash* rh;
@@ -30,7 +75,7 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes)
 	}
 
 	vec_foreach (registered_hashes, rh, i) {
-		int sameHash = memcmp(rh->hash, datagram->chunk_hash, sizeof(rh->hash)) == 0;
+		int sameHash = memcmp(rh->hash, datagram->hash_segment.hash, sizeof(rh->hash)) == 0;
 		int sameHost = memcmp(&rh->client, net->current, sizeof(*net->current));
 
 		if (1) {
@@ -51,14 +96,28 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes)
 
 		rh = malloc(sizeof(*rh));
 
-		memcpy(rh->hash, datagram->chunk_hash, sizeof(rh->hash));
+		memcpy(rh->hash, datagram->hash_segment.hash, sizeof(rh->hash));
 		memcpy(&rh->client, net->current, sizeof(rh->client));
 
 		vec_push(registered_hashes, rh);
 
 		puts("chunk registered\n");
+
+		/* PUT and PUT/ACK are the same exact datagrams. */
+		net_write(net, buffer, sizeof(RequestPut), 0);
 	} else {
+		RequestEC* answer = buffer;
+
 		puts("hash was put but already registered\n");
+
+		answer->type = REQUEST_EC;
+		answer->subtype = 0;
+
+		strcpy((char*) answer->data, "hash is already registered");
+
+		answer->size = strlen((const char*) answer->data);
+
+		net_write(net, buffer, sizeof(*answer) + answer->size, 0);
 	}
 }
 
@@ -117,7 +176,13 @@ main(int argc, const char** argv)
 
 	vec_init(&registered_hashes);
 
-	net_server(&net, 9000, "0.0.0.0", NET_IPV4);
+	if (net_server(&net, 9000, "0.0.0.0", NET_IPV4) == NET_FAIL) {
+		orz("Could not init server.");
+
+		vec_deinit(&registered_hashes);
+
+		return 0;
+	}
 
 	while ((count = net_read(&net, buffer, sizeof(buffer), 0)) > 0) {
 		RequestType type = buffer[0];
@@ -170,6 +235,15 @@ main(int argc, const char** argv)
 			case REQUEST_LIST_ANSWER:
 			case REQUEST_PUT_ACK:
 				printf("Got an unhandled request [type=%u].\n", type);
+				break;
+			case REQUEST_EC:
+				if (1) {
+					RequestEC* r = (void*) buffer;
+
+					write(0, (const char*) r->data, r->size);
+					putchar('\n');
+				}
+
 				break;
 		}
 	}

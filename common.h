@@ -14,45 +14,88 @@ typedef struct {
 	vec_void_t chunkDigests;
 } HashData;
 
+typedef struct __attribute__((__packed__)) {
+	uint8_t  c;    /* arbitrary constant */
+	uint16_t ipv;  /* version of IP address */
+	uint16_t port;
+	uint32_t address;
+} SegmentClient4;
+
+typedef struct __attribute__((__packed__)) {
+	uint8_t  c;    /* arbitrary constant */
+	uint16_t ipv;  /* version of IP address */
+	uint16_t port;
+	uint32_t address[4];
+} SegmentClient6;
+
+typedef union {
+	SegmentClient4 v4;
+	SegmentClient6 v6;
+} SegmentClient;
+
+typedef struct __attribute__((__packed__)) {
+	uint8_t  c;
+	uint16_t size;
+	uint8_t hash[32];
+} SegmentFileHash;
+
+typedef struct __attribute__((__packed__)) {
+	uint8_t  c;
+	uint16_t size;
+	uint8_t hash[32];
+	uint16_t index;
+} SegmentChunkHash;
+
 typedef enum {
-	REQUEST_GET,
-	REQUEST_GET_ANSWER,
-	REQUEST_LIST,
-	REQUEST_LIST_ANSWER,
-	REQUEST_PUT,
-	REQUEST_PUT_ACK,
+	REQUEST_LIST = 102,
+	REQUEST_LIST_ANSWER = 103,
+
+	REQUEST_PUT = 110,
+	REQUEST_PUT_ACK = 111,
+	REQUEST_GET = 112,
+	REQUEST_GET_ANSWER = 113,
 
 	/* Debug/orz */
-	REQUEST_PRINT
+	REQUEST_PRINT = 150,
+	REQUEST_EC = 42
 } RequestType;
 
 typedef struct __attribute__((__packed__)) {
-	unsigned char type;
-	unsigned char file_hash[32];
-	unsigned char chunk_hash[32];
+	uint8_t type;
+	uint8_t file_hash[32];
+	uint8_t chunk_hash[32];
 } RequestGet;
 
 typedef struct __attribute__((__packed__)) {
-	unsigned char type;
+	uint8_t type;
 	unsigned file_hash[32];
 } RequestList;
 
 typedef struct __attribute__((__packed__)) {
-	unsigned char type;
-	unsigned char file_hash[32];
+	uint8_t type;
+	uint8_t file_hash[32];
 	uint16_t chunks_count;
-	unsigned char chunk_hashes[32][0];
+	uint8_t chunk_hashes[32][0];
 } RequestListAnswer;
 
 typedef struct __attribute__((__packed__)) {
-	unsigned char type;
-	unsigned char chunk_hash[32];
+	uint8_t type;
+	SegmentFileHash hash_segment;
+	SegmentClient client_segment;
 } RequestPut;
 
 typedef struct __attribute__((__packed__)) {
-	unsigned char type;
-	unsigned char chunk_hash[32];
+	uint8_t type;
+	SegmentFileHash hash_segment;
+	SegmentClient client_segment;
 } RequestPutAck;
+
+typedef struct __attribute__((__packed__)) {
+	uint8_t  type;     /* packet type */
+	uint8_t  subtype;  /* error or control indicator */
+	uint16_t size;     /* size of raw data */
+	uint8_t  data[0];  /* variable-length raw data. */
+} RequestEC; /* Errors and Control */
 
 #endif
 
