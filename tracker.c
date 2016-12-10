@@ -88,7 +88,18 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 
 	if (!hashExists) {
 		if (keepalive) {
+			RequestEC* answer = buffer;
+
 			orz("received KEEP_ALIVE on unowned hash");
+
+			answer->type = REQUEST_EC;
+			answer->subtype = 0;
+
+			strcpy((char*) answer->data, "can't keep an unregistered hash alive");
+
+			answer->size = strlen((const char*) answer->data);
+
+			net_write(net, buffer, sizeof(*answer) + answer->size, 0);
 		} else {
 			RegisteredHash* rh;
 
