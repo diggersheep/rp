@@ -54,16 +54,19 @@ struct net
 	int fd;
 	//mode NET_CLIENT or NET_SERVER (i.e. bind or not)
 	int mode;
+	int version; //NET_IPV4 or NET_IPV6  i.e. 4 or 6
+
+
+	vec_void_t   data;
+
 	//addresses structure
 	union s_addr addr;
 	socklen_t    addr_len;
 
-	int version;
+	union s_addr * current;
+	socklen_t      current_len;
 
-	vec_void_t data;
-	struct sockaddr * current;
-
-	fd_select select;
+//	fd_select select;
 };
 
 //print errors and exit the program
