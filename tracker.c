@@ -58,7 +58,7 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 
 		struct sockaddr_in* in = (void*) net->current;
 		char address[INET6_ADDRSTRLEN];
-		inet_ntop(net->current->sa_family, &in->sin_addr, address, sizeof(address));
+		inet_ntop(net->current->v4.sin_family, &in->sin_addr, address, sizeof(address));
 		printf(" from %s\n", address);
 	}
 
