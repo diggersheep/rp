@@ -15,7 +15,7 @@ LDFLAGS :=
 
 Q := @
 
-all: hash-file tracker
+all: hash-file tracker client
 
 hash-file: hash-file.o hash.o sha256/sha256.o vec/vec.o 
 	@echo '[01;32m  LD >    [01;37mhash-file[00m'
@@ -50,6 +50,23 @@ tracker.clean:  net.o.clean hash.o.clean sha256/sha256.o.clean vec/vec.o.clean t
 tracker.uninstall:
 	@echo '[01;37m  RM >    [01;37m$(BINDIR)/tracker[00m'
 	$(Q)rm -f '$(DESTDIR)$(BINDIR)/tracker'
+
+client: net.o hash.o sha256/sha256.o vec/vec.o client.o 
+	@echo '[01;32m  LD >    [01;37mclient[00m'
+	$(Q)$(CC) -o client $(LDFLAGS) net.o hash.o sha256/sha256.o vec/vec.o client.o 
+
+client.install: client
+	@echo '[01;31m  IN >    [01;37m$(BINDIR)/client[00m'
+	$(Q)mkdir -p '$(DESTDIR)$(BINDIR)'
+	$(Q)install -m0755 client $(DESTDIR)$(BINDIR)/client
+
+client.clean:  net.o.clean hash.o.clean sha256/sha256.o.clean vec/vec.o.clean client.o.clean
+	@echo '[01;37m  RM >    [01;37mclient[00m'
+	$(Q)rm -f client
+
+client.uninstall:
+	@echo '[01;37m  RM >    [01;37m$(BINDIR)/client[00m'
+	$(Q)rm -f '$(DESTDIR)$(BINDIR)/client'
 
 hash-file.o: hash-file.c ./vec/vec.h ./sha256/sha256.h ./common.h ./hash.h
 	@echo '[01;34m  CC >    [01;37mhash-file.o[00m'
@@ -123,6 +140,18 @@ tracker.o.clean:
 
 tracker.o.uninstall:
 
+client.o: client.c ./net.h ./common.h ./hash.h
+	@echo '[01;34m  CC >    [01;37mclient.o[00m'
+	$(Q)$(CC) $(CFLAGS)  -c client.c   -o client.o
+
+client.o.install:
+
+client.o.clean:
+	@echo '[01;37m  RM >    [01;37mclient.o[00m'
+	$(Q)rm -f client.o
+
+client.o.uninstall:
+
 $(DESTDIR)$(PREFIX):
 	@echo '[01;35m  DIR >   [01;37m$(PREFIX)[00m'
 	$(Q)mkdir -p $(DESTDIR)$(PREFIX)
@@ -138,12 +167,12 @@ $(DESTDIR)$(SHAREDIR):
 $(DESTDIR)$(INCLUDEDIR):
 	@echo '[01;35m  DIR >   [01;37m$(INCLUDEDIR)[00m'
 	$(Q)mkdir -p $(DESTDIR)$(INCLUDEDIR)
-install: subdirs.install hash-file.install tracker.install hash-file.o.install hash.o.install sha256/sha256.o.install vec/vec.o.install net.o.install hash.o.install sha256/sha256.o.install vec/vec.o.install tracker.o.install
+install: subdirs.install hash-file.install tracker.install client.install hash-file.o.install hash.o.install sha256/sha256.o.install vec/vec.o.install net.o.install hash.o.install sha256/sha256.o.install vec/vec.o.install tracker.o.install net.o.install hash.o.install sha256/sha256.o.install vec/vec.o.install client.o.install
 	@:
 
 subdirs.install:
 
-uninstall: subdirs.uninstall hash-file.uninstall tracker.uninstall hash-file.o.uninstall hash.o.uninstall sha256/sha256.o.uninstall vec/vec.o.uninstall net.o.uninstall hash.o.uninstall sha256/sha256.o.uninstall vec/vec.o.uninstall tracker.o.uninstall
+uninstall: subdirs.uninstall hash-file.uninstall tracker.uninstall client.uninstall hash-file.o.uninstall hash.o.uninstall sha256/sha256.o.uninstall vec/vec.o.uninstall net.o.uninstall hash.o.uninstall sha256/sha256.o.uninstall vec/vec.o.uninstall tracker.o.uninstall net.o.uninstall hash.o.uninstall sha256/sha256.o.uninstall vec/vec.o.uninstall client.o.uninstall
 	@:
 
 subdirs.uninstall:
@@ -153,7 +182,7 @@ test: all subdirs subdirs.test
 
 subdirs.test:
 
-clean: hash-file.clean tracker.clean hash-file.o.clean hash.o.clean sha256/sha256.o.clean vec/vec.o.clean net.o.clean hash.o.clean sha256/sha256.o.clean vec/vec.o.clean tracker.o.clean
+clean: hash-file.clean tracker.clean client.clean hash-file.o.clean hash.o.clean sha256/sha256.o.clean vec/vec.o.clean net.o.clean hash.o.clean sha256/sha256.o.clean vec/vec.o.clean tracker.o.clean net.o.clean hash.o.clean sha256/sha256.o.clean vec/vec.o.clean client.o.clean
 
 distclean: clean
 
@@ -170,14 +199,15 @@ $(PACKAGE)-$(VERSION).tar.gz: distdir
 	$(Q)tar czf $(PACKAGE)-$(VERSION).tar.gz \
 		$(PACKAGE)-$(VERSION)/Makefile \
 		$(PACKAGE)-$(VERSION)/project.zsh \
-		$(PACKAGE)-$(VERSION)/net.c \
 		$(PACKAGE)-$(VERSION)/tracker.c \
 		$(PACKAGE)-$(VERSION)/hash-file.c \
+		$(PACKAGE)-$(VERSION)/net.c \
 		$(PACKAGE)-$(VERSION)/hash.c \
 		$(PACKAGE)-$(VERSION)/sha256/sha256.c \
 		$(PACKAGE)-$(VERSION)/vec/vec.c \
-		$(PACKAGE)-$(VERSION)/net.h \
+		$(PACKAGE)-$(VERSION)/client.c \
 		$(PACKAGE)-$(VERSION)/tracker.h \
+		$(PACKAGE)-$(VERSION)/net.h \
 		$(PACKAGE)-$(VERSION)/hash.h \
 		$(PACKAGE)-$(VERSION)/sha256/sha256.h \
 		$(PACKAGE)-$(VERSION)/vec/vec.h
@@ -188,14 +218,15 @@ $(PACKAGE)-$(VERSION).tar.xz: distdir
 	$(Q)tar cJf $(PACKAGE)-$(VERSION).tar.xz \
 		$(PACKAGE)-$(VERSION)/Makefile \
 		$(PACKAGE)-$(VERSION)/project.zsh \
-		$(PACKAGE)-$(VERSION)/net.c \
 		$(PACKAGE)-$(VERSION)/tracker.c \
 		$(PACKAGE)-$(VERSION)/hash-file.c \
+		$(PACKAGE)-$(VERSION)/net.c \
 		$(PACKAGE)-$(VERSION)/hash.c \
 		$(PACKAGE)-$(VERSION)/sha256/sha256.c \
 		$(PACKAGE)-$(VERSION)/vec/vec.c \
-		$(PACKAGE)-$(VERSION)/net.h \
+		$(PACKAGE)-$(VERSION)/client.c \
 		$(PACKAGE)-$(VERSION)/tracker.h \
+		$(PACKAGE)-$(VERSION)/net.h \
 		$(PACKAGE)-$(VERSION)/hash.h \
 		$(PACKAGE)-$(VERSION)/sha256/sha256.h \
 		$(PACKAGE)-$(VERSION)/vec/vec.h
@@ -206,14 +237,15 @@ $(PACKAGE)-$(VERSION).tar.bz2: distdir
 	$(Q)tar cjf $(PACKAGE)-$(VERSION).tar.bz2 \
 		$(PACKAGE)-$(VERSION)/Makefile \
 		$(PACKAGE)-$(VERSION)/project.zsh \
-		$(PACKAGE)-$(VERSION)/net.c \
 		$(PACKAGE)-$(VERSION)/tracker.c \
 		$(PACKAGE)-$(VERSION)/hash-file.c \
+		$(PACKAGE)-$(VERSION)/net.c \
 		$(PACKAGE)-$(VERSION)/hash.c \
 		$(PACKAGE)-$(VERSION)/sha256/sha256.c \
 		$(PACKAGE)-$(VERSION)/vec/vec.c \
-		$(PACKAGE)-$(VERSION)/net.h \
+		$(PACKAGE)-$(VERSION)/client.c \
 		$(PACKAGE)-$(VERSION)/tracker.h \
+		$(PACKAGE)-$(VERSION)/net.h \
 		$(PACKAGE)-$(VERSION)/hash.h \
 		$(PACKAGE)-$(VERSION)/sha256/sha256.h \
 		$(PACKAGE)-$(VERSION)/vec/vec.h
@@ -243,6 +275,7 @@ help:
 	@echo '[01;37mProject targets: [00m'
 	@echo '    - [01;33mhash-file     [37m binary[00m'
 	@echo '    - [01;33mtracker       [37m binary[00m'
+	@echo '    - [01;33mclient        [37m binary[00m'
 	@echo ''
 	@echo '[01;37mMakefile options:[00m'
 	@echo '    - gnu:           true'
