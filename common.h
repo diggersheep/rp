@@ -48,12 +48,14 @@ typedef struct __attribute__((__packed__)) {
 
 typedef enum {
 	REQUEST_LIST = 102,
-	REQUEST_LIST_ANSWER = 103,
+	REQUEST_LIST_ACK = 103,
 
 	REQUEST_PUT = 110,
 	REQUEST_PUT_ACK = 111,
 	REQUEST_GET = 112,
 	REQUEST_GET_ACK = 113,
+	REQUEST_KEEP_ALIVE = 114,
+	REQUEST_KEEP_ALIVE_ACK = 115,
 
 	/* Debug/orz */
 	REQUEST_PRINT = 150,
@@ -70,7 +72,7 @@ typedef struct __attribute__((__packed__)) {
 	uint8_t file_hash[32];
 	uint16_t chunks_count;
 	uint8_t chunk_hashes[32][0];
-} RequestListAnswer;
+} RequestListAck;
 
 typedef struct __attribute__((__packed__)) {
 	uint8_t type;
@@ -83,6 +85,18 @@ typedef struct __attribute__((__packed__)) {
 	SegmentFileHash hash_segment;
 	SegmentClient client_segment;
 } RequestPutAck;
+
+typedef struct __attribute__((__packed__)) {
+	uint8_t type;
+	SegmentFileHash hash_segment;
+	SegmentClient client_segment;
+} RequestKeepAlive;
+
+typedef struct __attribute__((__packed__)) {
+	uint8_t type;
+	SegmentFileHash hash_segment;
+	SegmentClient client_segment;
+} RequestKeepAliveAck;
 
 typedef struct __attribute__((__packed__)) {
 	uint8_t type;

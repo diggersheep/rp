@@ -46,7 +46,7 @@ check_segment_client(SegmentClient* s)
 }
 
 void
-handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes)
+handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int keepalive)
 {
 	RequestPut* datagram = (void*) buffer;
 	int hashExists = 0;
@@ -87,34 +87,47 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes)
 	}
 
 	if (!hashExists) {
-		RegisteredHash* rh;
+		if (keepalive) {
+			orz("received KEEP_ALIVE on unowned hash");
+		} else {
+			RegisteredHash* rh;
 
-		rh = malloc(sizeof(*rh));
+			rh = malloc(sizeof(*rh));
 
-		memcpy(rh->hash, datagram->hash_segment.hash, sizeof(rh->hash));
-		memcpy(&rh->client, net->current, sizeof(rh->client));
+			memcpy(rh->hash, datagram->hash_segment.hash, sizeof(rh->hash));
+			memcpy(&rh->client, net->current, sizeof(rh->client));
 
-		vec_push(registered_hashes, rh);
+			vec_push(registered_hashes, rh);
 
-		srsly("chunk registered");
+			srsly("file registered");
 
-		datagram->type = REQUEST_PUT_ACK;
+			datagram->type = REQUEST_PUT_ACK;
 
-		/* PUT and PUT/ACK are the same exact datagrams. */
-		net_write(net, buffer, sizeof(RequestPut), 0);
+			/* PUT and PUT/ACK are the same exact datagrams. */
+			net_write(net, buffer, sizeof(RequestPut), 0);
+		}
 	} else {
-		RequestEC* answer = buffer;
+		if (keepalive) {
+			srsly("keeping file alive");
 
-		wtf("hash was put but already registered");
+			datagram->type = REQUEST_KEEP_ALIVE_ACK;
 
-		answer->type = REQUEST_EC;
-		answer->subtype = 0;
+			/* Almost the same request types. The first fields are the exact same. */
+			net_write(net, buffer, sizeof(RequestKeepAliveAck), 0);
+		} else {
+			RequestEC* answer = buffer;
 
-		strcpy((char*) answer->data, "hash is already registered");
+			wtf("hash was put but already registered");
 
-		answer->size = strlen((const char*) answer->data);
+			answer->type = REQUEST_EC;
+			answer->subtype = 0;
 
-		net_write(net, buffer, sizeof(*answer) + answer->size, 0);
+			strcpy((char*) answer->data, "hash is already registered");
+
+			answer->size = strlen((const char*) answer->data);
+
+			net_write(net, buffer, sizeof(*answer) + answer->size, 0);
+		}
 	}
 }
 
@@ -122,7 +135,7 @@ void
 handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 {
 	RequestGet* datagram = (void*) buffer;
-	char answer_buffer[CHUNK_SIZE + sizeof(RequestListAnswer)];
+	char answer_buffer[CHUNK_SIZE + sizeof(RequestPutAck)];
 	RequestGetAck* answer = (void*) answer_buffer;
 	char* currentClient = (void*) answer->clients;
 
@@ -225,21 +238,14 @@ main(int argc, const char** argv)
 		/* FIXME: For each case, assert() that count is more than the matching expected datagram size. */
 		switch (type) {
 			case REQUEST_PUT:
-				handle_put(&net, buffer, &registered_hashes);
+				handle_put(&net, buffer, &registered_hashes, 0);
+				break;
+			case REQUEST_KEEP_ALIVE:
+				handle_put(&net, buffer, &registered_hashes, 1);
 				break;
 			case REQUEST_GET:
 				printf("Client sent GET request…\n");
 				handle_get(&net, buffer, &registered_hashes);
-			case REQUEST_LIST:
-				break;
-				if (1) {
-					RequestList* datagram = (void*) buffer;
-
-					puts("Client sent LIST request… ");
-					orz("Unimplemented.");
-				}
-				printf("Got a request to send a complete chunk.\n");
-				break;
 			case REQUEST_PRINT:
 				if (1) {
 					int i;
@@ -261,9 +267,11 @@ main(int argc, const char** argv)
 					puts(">>\n");
 				}
 				break;
+			case REQUEST_LIST:
+			case REQUEST_LIST_ACK:
 			case REQUEST_GET_ACK:
-			case REQUEST_LIST_ANSWER:
 			case REQUEST_PUT_ACK:
+			case REQUEST_KEEP_ALIVE_ACK:
 				orz("Got an unhandled request (type = %u).", type);
 				break;
 			case REQUEST_EC:
