@@ -66,6 +66,8 @@ struct net
 	union s_addr * current;
 	socklen_t      current_len;
 
+	struct timeval * timeout;
+
 //	fd_select select;
 };
 
@@ -85,5 +87,7 @@ int net_shutdown ( struct net * net );
 ssize_t net_write ( struct net * restrict net, const void * restrict buf, size_t len, int flags );
 ssize_t net_read  ( struct net * restrict net,       void * restrict buf, size_t len, int flags );
 
+
+void net_set_timeout ( struct net * net, struct timeval * t );
 
 #endif

@@ -46,6 +46,7 @@ net_init   ( struct net * restrict net, const short port, const char * restrict 
 
 	net->current_len = 0;
 	net->current     = NULL;
+	net->timeout     = NULL;
 	
 	//set in memory sockaddr_in6 + init sockaddr_in6
 	if (version == NET_IPV6 )
@@ -146,6 +147,11 @@ net_write ( struct net * net, const void * buf, size_t len, int flags )
 	return ret;
 }
 
+void net_set_timeout ( struct net * net, struct timeval * t )
+{
+	net->timeout = t;
+}
+
 // recvfrom with net structure
 ssize_t
 net_read ( struct net * net, void * buf, size_t len, int flags )
@@ -155,8 +161,7 @@ net_read ( struct net * net, void * buf, size_t len, int flags )
 	if ( net->mode != NET_SERVER && net->mode != NET_CLIENT ) return NET_FAIL;
 	if ( net->version != NET_IPV6 && net->version != NET_IPV4 ) return NET_FAIL;
 
-	int idx = 0;
-	ssize_t ret = NET_OK;
+	ssize_t ret = 1;
 	char addr_buf[32];
 	
 	for ( int i = 0 ; i < 32 ; i++ )
@@ -164,12 +169,29 @@ net_read ( struct net * net, void * buf, size_t len, int flags )
 	
 	net->current_len = 32;
 
+	int fd = net->fd;
+	fd_set fd_read;
+	FD_ZERO( &fd_read );
+	FD_SET( fd, &fd_read );
+
+	int ret_select = select(fd + 1 , &fd_read, NULL, NULL, net->timeout );
+	if ( ret_select == -1 )
+	{
+		printf("  Error - select.\n");
+		return NET_FAIL;
+	}
+	else if ( ret_select == 0 )
+	{
+		printf("  Warning - select timeout.\n");
+		return 0;
+	}
+
 	ret = recvfrom( net->fd, buf, len, flags, (struct sockaddr *)addr_buf, &net->current_len );
 
 	if ( net->current_len == sizeof(struct sockaddr_in6) ||  net->current_len == sizeof(struct sockaddr_in))
 	{
-//		if (net->current)
-//			free(net->current);
+		if (net->current)
+			free(net->current);
 		net->current = malloc( net->current_len );
 		memcpy( net->current, addr_buf, net->current_len );
 	}
@@ -179,35 +201,6 @@ net_read ( struct net * net, void * buf, size_t len, int flags )
 	}
 
 
-	if ( net->mode == NET_CLIENT )
-		return ret;
-
-
-	idx = -1;
-	void * e;
-	vec_foreach( &net->data, e, idx )
-	{
-		int check = 0;
-		if ( ((struct sockaddr * )e)->sa_family != ((struct sockaddr * )net->current)->sa_family )
-			break;
-
-		for ( int i = 0 ; i < 14 ; i++ )
-		{
-			if ( ((struct sockaddr *)(e))->sa_data[i] != ((struct sockaddr *)(net->current))->sa_data[i] )
-			{
-				check = -1;
-				break;
-			}
-		}
-
-		if ( check != 0 )
-			break;
-	}
-
-	if ( idx > net->data.length )
-		idx = -1;
-	if ( idx == -1 )
-		vec_push( &net->data, (void*)net->current );
 
 	return ret;
 }
