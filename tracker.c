@@ -137,12 +137,24 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes)
 void
 handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 {
-	RequestList* datagram = (void*) buffer;
+	RequestGet* datagram = (void*) buffer;
 	char answer_buffer[CHUNK_SIZE + sizeof(RequestListAnswer)];
-	RequestListAnswer* answer = (void*) answer_buffer;
-	size_t answer_size = sizeof(unsigned char);
+	RequestGetAck* answer = (void*) answer_buffer;
+	char* currentClient = (void*) answer->clients;
 
-	answer->type = REQUEST_LIST_ANSWER;
+	int r =
+		check_segment_file_hash(&datagram->hash_segment) &&
+		check_segment_client(&datagram->client_segment);
+
+	if (!r) {
+		orz("Dropping GET request.");
+
+		return;
+	}
+
+	answer->type = REQUEST_GET_ACK;
+	memcpy(answer->hash_segment.hash, datagram->hash_segment.hash, sizeof(answer->hash_segment.hash));
+	answer->count = 0;
 
 	int i;
 	RegisteredHash* rh;
@@ -152,23 +164,43 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 	answer = malloc(sizeof(*answer) + CHUNK_SIZE);
 
 	vec_foreach (registered_hashes, rh, i) {
-		if (!memcmp(rh->hash, datagram->file_hash, sizeof(*rh->hash))) {
+		if (!memcmp(rh->hash, datagram->hash_segment.hash, sizeof(*rh->hash))) {
 			inet_ntop(rh->client.sa_family, &rh->client, address, sizeof(address));
 
-			printf("  -> %s [", address);
+			printf("  -> [");
 			print_hash(rh->hash);
 			puts("] ");
 
 			if (rh->client.sa_family == AF_INET) {
-				printf("%s", address);
-			} else if (rh->client.sa_family == AF_INET6) {
-				printf("%s", address);
-			} else {
-				printf("%s", address);
-				fprintf(stderr, "ohshit() unimplemented.\n");
-			}
+				SegmentClient4* client = (void*) currentClient;
+				struct sockaddr_in* in = (void*) &rh->client;
 
-			puts("\n");
+				client->c = 55;
+				client->ipv = 6;
+				client->port = in->sin_port;
+
+				memcpy(&client->address, &in->sin_addr, sizeof(client->address));
+
+				printf("IPv4 client: %s\n", address);
+
+				currentClient += sizeof(SegmentClient4);
+			} else if (rh->client.sa_family == AF_INET6) {
+				SegmentClient6* client = (void*) currentClient;
+				struct sockaddr_in* in = (void*) &rh->client;
+
+				client->c = 55;
+				client->ipv = 18;
+				client->port = in->sin_port;
+
+				memcpy(&client->address, &in->sin_addr, sizeof(client->address));
+
+				printf("IPv6 client: %s\n", address);
+
+				currentClient += sizeof(SegmentClient6);
+			} else {
+				orz("Unexpected protocol in registered client [%s, sa_family=%d]",
+					address, rh->client.sa_family);
+			}
 		}
 	}
 }
@@ -213,13 +245,10 @@ main(int argc, const char** argv)
 			case REQUEST_LIST:
 				break;
 				if (1) {
-					RequestGet* datagram = (void*) buffer;
+					RequestList* datagram = (void*) buffer;
 
 					puts("Client sent LIST request… ");
-					print_hash(datagram->file_hash);
-					puts(", ");
-					print_hash(datagram->chunk_hash);
-					puts("\n");
+					orz("Unimplemented.");
 				}
 				printf("Got a request to send a complete chunk.\n");
 				break;
@@ -244,7 +273,7 @@ main(int argc, const char** argv)
 					puts(">>\n");
 				}
 				break;
-			case REQUEST_GET_ANSWER:
+			case REQUEST_GET_ACK:
 			case REQUEST_LIST_ANSWER:
 			case REQUEST_PUT_ACK:
 				printf("Got an unhandled request [type=%u].\n", type);

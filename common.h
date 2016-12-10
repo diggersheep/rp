@@ -53,18 +53,12 @@ typedef enum {
 	REQUEST_PUT = 110,
 	REQUEST_PUT_ACK = 111,
 	REQUEST_GET = 112,
-	REQUEST_GET_ANSWER = 113,
+	REQUEST_GET_ACK = 113,
 
 	/* Debug/orz */
 	REQUEST_PRINT = 150,
 	REQUEST_EC = 42
 } RequestType;
-
-typedef struct __attribute__((__packed__)) {
-	uint8_t type;
-	uint8_t file_hash[32];
-	uint8_t chunk_hash[32];
-} RequestGet;
 
 typedef struct __attribute__((__packed__)) {
 	uint8_t type;
@@ -89,6 +83,19 @@ typedef struct __attribute__((__packed__)) {
 	SegmentFileHash hash_segment;
 	SegmentClient client_segment;
 } RequestPutAck;
+
+typedef struct __attribute__((__packed__)) {
+	uint8_t type;
+	SegmentFileHash hash_segment;
+	SegmentClient client_segment;
+} RequestGet;
+
+typedef struct __attribute__((__packed__)) {
+	uint8_t type;
+	SegmentFileHash hash_segment;
+	uint16_t count; /* Number of client segments to expect. */
+	SegmentClient clients[0];
+} RequestGetAck;
 
 typedef struct __attribute__((__packed__)) {
 	uint8_t  type;     /* packet type */
