@@ -6,24 +6,8 @@
 #include "common.h"
 #include "hash.h"
 #include "net.h"
+#include "debug.h"
 #include "tracker.h"
-
-int
-orz(const char *restrict fmt, ...)
-{
-	int ret;
-	va_list ap;
-
-	fputs("\027[01;31m> ", stderr);
-
-	va_start(ap, fmt);
-	ret = vfprintf(stderr, fmt, ap);
-	va_end(ap);
-
-	fputs("\027[00m\n", stderr);
-
-	return ret;
-}
 
 bool
 check_segment_file_hash(SegmentFileHash* s)
