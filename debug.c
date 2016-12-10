@@ -36,3 +36,20 @@ wtf(const char *restrict fmt, ...)
 	return ret;
 }
 
+int
+srsly(const char *restrict fmt, ...)
+{
+	int ret;
+	va_list ap;
+
+	fputs("\033[01;34m> \033[01;37m", stdout);
+
+	va_start(ap, fmt);
+	ret = vfprintf(stdout, fmt, ap);
+	va_end(ap);
+
+	fputs("\033[00m\n", stdout);
+
+	return ret;
+}
+

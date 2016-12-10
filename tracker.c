@@ -54,7 +54,7 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes)
 	if (1) {
 		printf("<");
 		print_hash(datagram->hash_segment.hash);
-		printf(">\n");
+		printf(">");
 
 		struct sockaddr_in* in = (void*) net->current;
 		char address[INET6_ADDRSTRLEN];
@@ -96,7 +96,7 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes)
 
 		vec_push(registered_hashes, rh);
 
-		puts("chunk registered");
+		srsly("chunk registered");
 
 		datagram->type = REQUEST_PUT_ACK;
 
@@ -105,7 +105,7 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes)
 	} else {
 		RequestEC* answer = buffer;
 
-		puts("hash was put but already registered");
+		wtf("hash was put but already registered");
 
 		answer->type = REQUEST_EC;
 		answer->subtype = 0;
