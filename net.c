@@ -66,7 +66,6 @@ net_init   ( struct net * restrict net, const short port, const char * restrict 
 		err = inet_pton( AF_INET , ip, &(net->addr.v4.sin_addr));
 	}
 
-
 	// err if @ip can't be copying
 	if ( err != 1 )
 		return NET_ERR_INIT_ADDR;
@@ -81,7 +80,6 @@ net_init   ( struct net * restrict net, const short port, const char * restrict 
 
 	if ( net->fd == -1 )
 		return NET_ERR_INIT_SOCK;
-
 
 	// bind if it's a server
 	if ( mode == NET_SERVER )
@@ -107,7 +105,6 @@ net_client ( struct net * net, const short port, const char * ip6, int version )
 {
 	return net_init(net, port, ip6, NET_CLIENT, version );
 }
-
 
 int
 net_server ( struct net * net, const short port, const char * ip6, int version )
@@ -186,7 +183,10 @@ net_read ( struct net * net, void * buf, size_t len, int flags )
 		return 0;
 	}
 
-	ret = recvfrom( net->fd, buf, len, flags, (struct sockaddr *)addr_buf, &net->current_len );
+	if ( FD_ISSET( net->fd, &fd_read ) )
+	{
+		ret = recvfrom( net->fd, buf, len, flags, (struct sockaddr *)addr_buf, &net->current_len );
+	}
 
 	if ( net->current_len == sizeof(struct sockaddr_in6) ||  net->current_len == sizeof(struct sockaddr_in))
 	{

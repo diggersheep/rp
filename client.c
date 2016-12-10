@@ -12,19 +12,27 @@
 #define CMD_LIST 4
 #define CMD_DEBUG 99
 
+void handle_EC ( const RequestEC * datagram )
+{
+	if ( datagram->subtype == 0 )
+	{
+		write( 0, datagram->data, datagram->size );
+		putchar('\n');
+	}
+}
+
 int recv_put_ack ()//( struct net * net, RequestPutAck * datagram )
 {
-	
 
 
 	return 0;
 }
 
 
-int send_put_all ( struct net * net, struct net * srv, const HashData * hd )
+int send_put_all ( struct net * net, const HashData * hd )
 {
 	int err = 0;
-	err = send_put(net, srv, (char *)hd->digest, 0);
+	err = send_put(net, (char *)hd->digest, 0);
 
 /*
 	for ( int i = 1 ; i < hd->chunkDigests.length ; i ++ )
@@ -36,7 +44,7 @@ int send_put_all ( struct net * net, struct net * srv, const HashData * hd )
 	return err;
 }
 
-int send_put ( struct net * net, struct net * srv, const char * hash, int type )
+int send_put ( struct net * net, const char * hash, int type )
 {
 	if ( type != 0 && type != 1 )
 		return 1;
@@ -49,140 +57,59 @@ int send_put ( struct net * net, struct net * srv, const char * hash, int type )
 	RequestPut r;
 
 	char buf[512];
-	buf[0] = 0x00;
-	int ok = 0;
-
-	fd_set rr;
 
 	struct timeval t;
-	t.tv_sec = 0;
-	t.tv_usec = 100;
+	t.tv_sec  = 1;
+	t.tv_usec = 0;
 
-	for (int i = 0;; i++)
+
+	if ( hash )
 	{
-		if ( i == 1000*1000*10 )
-			break;
-
-		FD_ZERO( &rr );
-		
-		FD_SET(  srv->fd, &rr );
-		FD_SET(  net->fd, &rr );
-
-		if ( select( srv->fd + 1 , &rr, NULL, NULL, &t ) < 0)
+		r.type = REQUEST_PUT;
+			if ( type == 0 )
+			r.hash_segment.c = 50; //fichier
+		else
+			r.hash_segment.c = 51; //hash
+			r.hash_segment.size = 32; //obvious
+		memcpy( &(r.hash_segment.hash), hash, r.hash_segment.size );
+			
+		if ( net->version == NET_IPV4 )
 		{
-			printf("FAIL SELECT\n");
-			break;
+			r.client_segment.v4.c = 55;
+			r.client_segment.v4.ipv  = 6;
+			r.client_segment.v6.port = net->addr.v4.sin_port;
+			memcpy( &(r.client_segment.v4.address), &(net->addr.v4.sin_addr), sizeof(r.client_segment.v4.address) );
 		}
 		else
 		{
-
-			if ( i % 1000000 == 0 )
-			{
-				putchar('.');
-				fflush(stdout);
-			}			
+			r.client_segment.v6.c    = 55;
+			r.client_segment.v6.ipv  = 18;
+			r.client_segment.v6.port = net->addr.v6.sin6_port;
+			memcpy( &(r.client_segment.v6.address), &(net->addr.v6.sin6_addr), sizeof(r.client_segment.v6.address) );
 		}
 
-
-
-		if ( FD_ISSET( srv->fd, &rr ) )
+		if ( net_write( net, &r, sizeof(r), 0) != -1)
 		{
-
-
-			printf("READ\n");
-
-			if ( net_read(srv, buf, 512, 0)  != -1)
-			{
-				printf("RRRRREEEEEEEAAAAAAAADDDDDDDD\n");
-				break;
-			}
-			else
-			{
-				printf("Fuck\n");
-			}
-
-
-			
+			char c[33];
+			c[32] = 0x00;
+			printf("OK  put hash :  ");
+			print_hash((unsigned char *)hash);
+			printf("\n");
 		}
-
-
-		if ( FD_ISSET( net->fd, &rr ) )
+		else
 		{
-
-			
-			printf("READ\n");
-
-			char * buf[512];
-			if ( net_read(srv, buf, 512, 0)  != -1)
-			{
-				printf("RRRRREEEEEEEAAAAAAAADDDDDDDD\n");
-				break;
-			}
-			else
-			{
-				printf("Fuck\n");
-			}
-
-
-			
-		}
-
-		if ( ok == 0 )
-		{
-
-			if ( hash )
-			{
-				r.type = REQUEST_PUT;
-
-				if ( type == 0 )
-					r.hash_segment.c = 50; //fichier
-				else
-					r.hash_segment.c = 51; //hash
-
-				r.hash_segment.size = 32; //obvious
-				memcpy( &(r.hash_segment.hash), hash, r.hash_segment.size );
-					
-				if ( net->version == NET_IPV4 )
-				{
-					r.client_segment.v4.c = 55;
-					r.client_segment.v4.ipv  = 6;
-					r.client_segment.v6.port = net->addr.v4.sin_port;
-					memcpy( &(r.client_segment.v4.address), &(net->addr.v4.sin_addr), sizeof(r.client_segment.v4.address) );
-				}
-				else
-				{
-					r.client_segment.v6.c    = 55;
-					r.client_segment.v6.ipv  = 18;
-					r.client_segment.v6.port = net->addr.v6.sin6_port;
-					memcpy( &(r.client_segment.v6.address), &(net->addr.v6.sin6_addr), sizeof(r.client_segment.v6.address) );
-				}
-
-
-				if ( net_write( net, &r, sizeof(r), 0) != -1)
-				{
-					char c[33];
-					c[32] = 0x00;
-					printf("OK  put hash :  ");
-					print_hash((unsigned char *)hash);
-					printf("\n");
-				}
-				else
-				{
-
-					printf("ERR put hash :  ");
-					print_hash( (unsigned char *)hash );
-					printf("\n");
-					return 1;
-				}
-			}
-
-			ok = 1;
+			printf("ERR put hash :  ");
+			print_hash( (unsigned char *)hash );
+			printf("\n");
+			return 1;
 		}
 	}
-	printf("\n");
 
+	net_set_timeout( net, &t );
+	if ( net_read(net, buf, 512, 0) == 0 )
+		return 1;
 
-
+	handle_EC( (void *)buf );
 
 	return 0;
 }
@@ -307,9 +234,9 @@ main ( int argc, const char* argv[] )
 	net_error(err);
 
 	if (net.version == 4)
-		srv.current = (struct sockaddr *)&(net.addr.v4);
+		srv.current = (void *)&(net.addr.v4);
 	else
-		srv.current = (struct sockaddr *)&(net.addr.v6);
+		srv.current = (void *)&(net.addr.v6);
 
 	srsly("Opening '%s'.", filename);
 	HashData * hd = hash_data_new(filename);
@@ -317,12 +244,12 @@ main ( int argc, const char* argv[] )
 	switch (command) {
 		case CMD_PRINT:
 			{
-				uint8_t c = REQUEST_PRINT; 
+				uint8_t c = REQUEST_PRINT;
 				net_write( &net, &c, 1 ,0 );
 			}
 			break;
 		case CMD_PUT:
-			send_put_all(&net, &srv, hd);
+			send_put_all(&net,  hd);
 
 			break;
 		case CMD_LIST:
