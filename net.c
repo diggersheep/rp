@@ -14,10 +14,10 @@ net_error ( int err )
 		case NET_ERR_INIT_ADDR:
 			fprintf( stderr, "  [ERR] - net_init() - cannot convert IPv6 address.\n");
 			break;
-		case NET_ERR_INIT_SOCK:		
+		case NET_ERR_INIT_SOCK:
 			fprintf( stderr, "  [ERR] - net_init() - connot create a socket.\n");
 			break;
-		case NET_ERR_INIT_BIND:		
+		case NET_ERR_INIT_BIND:
 			fprintf( stderr, "  [ERR] - net_init() - binding error.\n");
 			break;
 		default: //no error
@@ -38,14 +38,19 @@ net_init   ( struct net * restrict net, const short port, const char * restrict 
 		return NET_ERR_INIT_MODE;
 
 	//init struct
-	net->addr_len = sizeof(net->addr);
-	net->mode     = mode;
-	net->fd       = -1;
-	net->current  = NULL;
+	net->addr_len   = sizeof(net->addr);
+	net->mode       = mode;
+	net->fd         = -1;
+	net->version    = version;
 
+
+	net->current_len = 0;
+	net->current     = NULL;
+	
 	//set in memory sockaddr_in6 + init sockaddr_in6
 	if (version == NET_IPV6 )
-	{		
+	{
+		net->addr_len = sizeof(struct sockaddr_in6);
 		memset( (char*)&(net->addr), 0, sizeof(net->addr));
 		net->addr.v6.sin6_family = AF_INET6;
 		net->addr.v6.sin6_port   = htons(port);
@@ -53,16 +58,19 @@ net_init   ( struct net * restrict net, const short port, const char * restrict 
 	}
 	else // set in memory sockaddr_in + init socckaddr_in
 	{
+		net->addr_len    = sizeof(struct sockaddr_in);
 		memset( (char*)&(net->addr), 0, sizeof(net->addr));
 		net->addr.v4.sin_family = AF_INET;
 		net->addr.v4.sin_port   = htons(port);
 		err = inet_pton( AF_INET , ip, &(net->addr.v4.sin_addr));
 	}
 
+
 	// err if @ip can't be copying
 	if ( err != 1 )
 		return NET_ERR_INIT_ADDR;
 	printf("Init on address %s and %d port.\n", ip, port);
+
 
 	//init socket UDP - ipV6
 	if (version == NET_IPV6)
@@ -72,6 +80,7 @@ net_init   ( struct net * restrict net, const short port, const char * restrict 
 
 	if ( net->fd == -1 )
 		return NET_ERR_INIT_SOCK;
+
 
 	// bind if it's a server
 	if ( mode == NET_SERVER )
@@ -86,9 +95,6 @@ net_init   ( struct net * restrict net, const short port, const char * restrict 
 			return NET_ERR_INIT_BIND;
 		vec_init( &(net->data) );
 	}
-
-	net->version = version;
-
 
 	return NET_OK;
 }
@@ -116,37 +122,24 @@ net_write ( struct net * net, const void * buf, size_t len, int flags )
 	//some check
 	if ( !net ) return NET_FAIL;
 	if ( net->mode != NET_SERVER && net->mode != NET_CLIENT ) return NET_FAIL;
+	if ( net->version != NET_IPV6 && net->version != NET_IPV4 ) return NET_FAIL;
 
-	ssize_t ret = 0;// return idx
+	int ret = NET_OK;
 
 	if ( net->mode == NET_CLIENT )
 	{
-		ret = sendto(
-			net->fd,
-			buf,
-			len,
-			flags,
-			(struct sockaddr *) &(net->addr),
-			net->addr_len
-		);
+		ret = sendto(net->fd, buf, len, flags, (struct sockaddr *)&net->addr, net->addr_len);
 	}
 	else
-	{	
-		if ( net->current )		
+	{
+		if ( !!net->current && ( net->current_len == sizeof(struct sockaddr_in6) || net->current_len == sizeof(struct sockaddr_in)) )
 		{
-			printf("write srv %p\n", net->current);
-			ret = sendto(
-					net->fd,
-					buf,
-					len,
-					flags,
-					(struct sockaddr *) &(net->current),
-					net->addr_len
-				);
+			ret = sendto(net->fd, buf, len, flags, (struct sockaddr *)&net->addr, net->current_len);
 		}
 		else
 		{
-			printf("err\n");
+			printf("net->current is not net->current! Liar!\n");
+			return NET_FAIL;
 		}
 	}
 
@@ -160,65 +153,61 @@ net_read ( struct net * net, void * buf, size_t len, int flags )
 	//some check
 	if ( !net ) return NET_FAIL;
 	if ( net->mode != NET_SERVER && net->mode != NET_CLIENT ) return NET_FAIL;
+	if ( net->version != NET_IPV6 && net->version != NET_IPV4 ) return NET_FAIL;
 
-	struct sockaddr addr;
-	socklen_t l = -1;
+	int idx = 0;
+	ssize_t ret = NET_OK;
+	char addr_buf[32];
+	
+	for ( int i = 0 ; i < 32 ; i++ )
+		addr_buf[i] = 0x00;
+	
+	net->current_len = 32;
 
-	ssize_t ret = 0;//return idx
-	ret = recvfrom(
-			net->fd,
-			buf,
-			len,
-			flags,
-			&(addr),
-			&(l)
-		);
+	ret = recvfrom( net->fd, buf, len, flags, (struct sockaddr *)addr_buf, &net->current_len );
 
-	// TODO: fix read -1
+	if ( net->current_len == sizeof(struct sockaddr_in6) ||  net->current_len == sizeof(struct sockaddr_in))
+	{
+//		if (net->current)
+//			free(net->current);
+		net->current = malloc( net->current_len );
+		memcpy( net->current, addr_buf, net->current_len );
+	}
+	else
+	{
+		return 0;  
+	}
+
 
 	if ( net->mode == NET_CLIENT )
 		return ret;
 
-	int idx = -1;
 
+	idx = -1;
 	void * e;
-	vec_foreach( &(net->data), e, idx )
+	vec_foreach( &net->data, e, idx )
 	{
 		int check = 0;
-
-		if ( ((struct sockaddr *)(e))->sa_family != addr.sa_family )
+		if ( ((struct sockaddr * )e)->sa_family != ((struct sockaddr * )net->current)->sa_family )
 			break;
 
 		for ( int i = 0 ; i < 14 ; i++ )
 		{
-			if ( ((struct sockaddr *)(e))->sa_data[i] != addr.sa_data[i] )
+			if ( ((struct sockaddr *)(e))->sa_data[i] != ((struct sockaddr *)(net->current))->sa_data[i] )
 			{
 				check = -1;
 				break;
 			}
 		}
-		if (check != 0)
+
+		if ( check != 0 )
 			break;
 	}
+
 	if ( idx > net->data.length )
 		idx = -1;
-
-	if ( l < 1 )
-		return 1;
-
-
-	struct sockaddr * new_addr = malloc(l);
-	memcpy(new_addr, &addr, l);
-
 	if ( idx == -1 )
-	{
-		vec_push( &(net->data), (void*)(new_addr) );
-	}
-
-	if (net->current)
-		free(net->current);
-	
-	net->current = new_addr;
+		vec_push( &net->data, (void*)net->current );
 
 	return ret;
 }
