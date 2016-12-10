@@ -4,6 +4,14 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "debug.h"
+
+#define CMD_PUT 1
+#define CMD_GET 2
+#define CMD_PRINT 3
+#define CMD_LIST 4
+#define CMD_DEBUG 99
+
 int recv_put_ack ()//( struct net * net, RequestPutAck * datagram )
 {
 	
@@ -185,18 +193,106 @@ int send_put ( struct net * net, struct net * srv, const char * hash, int type )
 
 
 int
-main ( int argc, const char * argv[] )
+main ( int argc, const char* argv[] )
 {
+	const char* filename = NULL;
+	uint16_t port = 9000;
+	const char* destination = NULL;
+	int command = 0;
 
-	if ( argc < 2 )
+	for (int i = 1; i < argc; i++) {
+		if (argv[i][0] == '-') {
+			if (argv[i][1] == '-') {
+				if (!strcmp(argv[i], "--port")) {
+					if ((i + 1) < argc) {
+						port = atol(argv[i+1]);
+
+						i++;
+					} else {
+						orz("--port expects a port number");
+
+						return 1;
+					}
+				} else if (!strcmp(argv[i], "--host")) {
+					if ((i + 1) < argc) {
+						destination = argv[i+1];
+
+						i++;
+					} else {
+						orz("--host expects a hostname or address");
+
+						return 1;
+					}
+				}
+			} else {
+				for (int j = 1; argv[i][j]; j++) {
+					if (argv[i][j] == 'p') {
+						if (argv[i][j + 1] == '\0' && (i + 1) < argc) {
+							port = atol(argv[i+1]);
+
+							i++;
+
+							break;
+						} else {
+							orz("-p expects a port number");
+
+							return 1;
+						}
+					} else if (argv[i][j] == 'h') {
+						if (argv[i][j + 1] == '\0' && (i + 1) < argc) {
+							destination = argv[i+1];
+
+							i++;
+
+							break;
+						} else {
+							orz("-h expects a hostname or address");
+
+							return 1;
+						}
+					}
+				}
+			}
+		} else {
+			if (!command) {
+				if (!strcmp(argv[i], "put")) {
+					command = CMD_PUT;
+				} else if (!strcmp(argv[i], "get")) {
+					command = CMD_GET;
+				} else if (!strcmp(argv[i], "print")) {
+					command = CMD_PRINT;
+				} else if (!strcmp(argv[i], "debug")) {
+					command = CMD_DEBUG;
+				} else {
+					orz("received unexpected command: %s", argv[i]);
+					return 1;
+				}
+			} else if (!filename) {
+				filename = argv[i];
+			} else {
+				orz("unexpected extra operand: %s", argv[i]);
+				return 1;
+			}
+		}
+	}
+
+	if (!command) {
+		orz("no command, use 'get', 'put', 'print', or RTFM");
+
 		return 1;
+	}
 
+	if (!filename) {
+		orz("add a filename, please");
 
-	char filename[] = "client.c";
-//	char filename[] = "/home/alex/Téléchargements/IMG_20161203_100138909.jpg";
-	short port = 9000;
-	char ip[] = "192.168.0.12";
+		return 1;
+	}
 
+	if (!destination) {
+		orz("no destination set, use -h <addr>");
+
+		return 1;
+	}
 
 	char buf[CHUNK_SIZE+64];
 	buf[0] = 0x00; //safety
@@ -205,7 +301,7 @@ main ( int argc, const char * argv[] )
 
 	struct net net;
 	struct net srv;
-	int err = net_init(&net, port, ip, NET_CLIENT, NET_IPV4);
+	int err = net_init(&net, port, destination, NET_CLIENT, NET_IPV4);
 	net_error(err);
 	err = net_init(&srv, port, "0.0.0.0", NET_SERVER, NET_IPV4);
 	net_error(err);
@@ -215,30 +311,30 @@ main ( int argc, const char * argv[] )
 	else
 		srv.current = (struct sockaddr *)&(net.addr.v6);
 
+	srsly("Opening '%s'.", filename);
+	HashData * hd = hash_data_new(filename);
 
-	HashData * hd = NULL;
-	hd = hash_data_new(filename);
+	switch (command) {
+		case CMD_PRINT:
+			{
+				uint8_t c = REQUEST_PRINT; 
+				net_write( &net, &c, 1 ,0 );
+			}
+			break;
+		case CMD_PUT:
+			send_put_all(&net, &srv, hd);
 
-	if ( strcmp( argv[1], "print" ) == 0 )
-	{
-		char c = REQUEST_PRINT; 
-		net_write( &net, &c, 1 ,0 );
+			break;
+		case CMD_LIST:
+			break;
+		case CMD_DEBUG: {
+				char c [] = "bonjour tout le monde ! ça va ? oui, bien et toi ? Tranquille !! :p";
+				net_write( &net, c, sizeof("bonjour tout le monde ! ça va ? oui, bien et toi ? Tranquille !! :p"), 0);
+			}
+			break;
 	}
-	else if ( strcmp( argv[1], "put" )  == 0 )
-	{
 
-		send_put_all(&net, &srv, hd);
-
-		hash_data_free(hd);
-	}
-	else if ( strcmp( argv[1], "list" )  == 0 )
-	{
-	}
-	else if ( strcmp( argv[1], "db" )  == 0 )
-	{
-		char c [] = "bonjour tout le monde ! ça va ? oui, bien et toi ? Tranquille !! :p";
-		net_write( &net, c, sizeof("bonjour tout le monde ! ça va ? oui, bien et toi ? Tranquille !! :p"), 0);
-	}
+	hash_data_free(hd);
 
 	return 0;
 }
