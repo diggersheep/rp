@@ -1,10 +1,15 @@
-#include "client.h"
-
+#include <stdio.h>
+#include <string.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "net.h"
+#include "common.h"
+#include "hash.h"
 #include "debug.h"
+
+#include "client.h"
 
 #define CMD_PUT 1
 #define CMD_GET 2
@@ -12,178 +17,154 @@
 #define CMD_LIST 4
 #define CMD_DEBUG 99
 
-int recv_put_ack ()//( struct net * net, RequestPutAck * datagram )
-{
-	return 0;
-}
-
-
-int send_put_all ( struct net * net, struct net * srv, const HashData * hd )
+int
+send_put(struct net* net, const HashData * hd)
 {
 	int err = 0;
-	err = send_put(net, srv, (char *)hd->digest, 0);
+	char buffer[sizeof(RequestPut)];
+	RequestPut* rq = (void*) buffer;
 
-/*
-	for ( int i = 1 ; i < hd->chunkDigests.length ; i ++ )
-	{
-		err = err | send_put(net, hd->chunkDigests.data[i], 0 );
-	}
-*/	
+	rq->type = REQUEST_PUT;
+
+	rq->hash_segment.c = 50;
+	rq->hash_segment.size = 32;
+	memcpy((void*) rq->hash_segment.hash, hd->digest, sizeof(rq->hash_segment.hash));
+
+	rq->client_segment.v4.c = 55;
+	if (net->version == 4)
+		rq->client_segment.v4.ipv = 6;
+	else
+		rq->client_segment.v4.ipv = 18;
+
+	struct sockaddr_in* saddr = (struct sockaddr_in*) &net->addr;
+	rq->client_segment.v4.port = saddr->sin_port;
+
+	memcpy(
+		(void*) rq->client_segment.v6.address,
+		&saddr->sin_addr,
+		net->version == 4 ? 4 : 16
+	);
+
+	net_write(net, (void*) rq, sizeof(*rq), 0);
+
 
 	return err;
 }
 
-int send_put ( struct net * net, struct net * srv, const char * hash, int type )
+const char*
+status_string(RegisteredFile* rf)
 {
-	if ( type != 0 && type != 1 )
-		return 1;
+	switch (rf->status) {
+		case STATUS_PUT:
+			return "PUT";
+		case STATUS_KEEP_ALIVE:
+			return "KEEP-ALIVE";
+		case STATUS_GET:
+			return "GET";
+	}
+}
 
-	//fichier = 50
-	//fichier = 51
-	//cli     = 55
-	//frag    = 60
+void
+handle_timeout(struct net* tracker, vec_void_t* registered_files)
+{
+	int i;
+	RegisteredFile* rf;
 
-	RequestPut r;
+	vec_foreach(registered_files, rf, i) {
+		printf(" -> %s (%s) %i\n", rf->filename, status_string(rf), rf->timeout);
 
-	char buf[512];
-	buf[0] = 0x00;
-	int ok = 0;
+		if (--rf->timeout == 0) {
+			printf("Something timeout’d.\n");
 
-	fd_set rr;
+			switch (rf->status) {
+				case STATUS_PUT:
+					send_put(tracker, rf->hash_data);
+					orz("should be sending new PUT here");
+					rf->timeout = 5;
+					break;
+				case STATUS_KEEP_ALIVE:
+					orz("should be sending new PUT here");
+					rf->status = STATUS_PUT;
+					rf->timeout = 5;
+					break;
+				case STATUS_GET:
+					orz("should be sending new GET here");
+					rf->timeout = 5;
+					break;
+			}
+		} else if (rf->status == STATUS_KEEP_ALIVE) {
+			if (rf->timeout <= 30 && rf->timeout % 5 == 0) {
+				orz("should be sending new KEEP_ALIVE here");
+			}
+		}
+	}
+}
+
+void
+handle_ec(char* buffer, int size)
+{
+	RequestEC* r = (void*) buffer;
+
+	if ((unsigned) size < sizeof(*r) || (unsigned) size < sizeof(*r) + r->size) {
+		orz("received broken EC, datagram was too short");
+
+		return;
+			
+	}
+
+	if (r->subtype == 0) {
+		char c = '\n';
+		write(1, r->data, r->size);
+		write(1, &c, 1);
+	} else {
+		wtf("Received unhandled EC type.");
+	}
+}
+
+int
+event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
+{
+	char buffer[CHUNK_SIZE * 2];
 
 	struct timeval t;
 	t.tv_sec = 0;
-	t.tv_usec = 100;
+	t.tv_usec = 0;
+
+	net_set_timeout(net, &t);
+	net_set_timeout(srv, &t);
 
 	for (int i = 0;; i++)
 	{
-		if ( i == 1000*1000*10 )
-			break;
+		int count;
 
-		FD_ZERO( &rr );
-		
-		FD_SET(  srv->fd, &rr );
-		FD_SET(  net->fd, &rr );
+		count = net_read(net, buffer, sizeof(buffer), 0);
 
-		if ( select( srv->fd + 1 , &rr, NULL, NULL, &t ) < 0)
-		{
-			printf("FAIL SELECT\n");
-			break;
-		}
-		else
-		{
+		if (count < 0) {
+			orz("something bad happened");
+			net_error(count);
+		} else if (count == 0) { /* timeout */
+			handle_timeout(net, registered_files);
+		} else {
+			RequestType type = buffer[0];
 
-			if ( i % 1000000 == 0 )
-			{
-				putchar('.');
-				fflush(stdout);
-			}			
-		}
-
-		if ( FD_ISSET( srv->fd, &rr ) )
-		{
-
-
-			printf("READ\n");
-
-			if ( net_read(srv, buf, 512, 0)  != -1)
-			{
-				printf("RRRRREEEEEEEAAAAAAAADDDDDDDD\n");
-				break;
+			switch (type) {
+				case REQUEST_EC:
+					handle_ec(buffer, count);
+					break;
+				case REQUEST_PUT_ACK:
+					break;
 			}
-			else
-			{
-				printf("Fuck\n");
-			}
-
-
-			
 		}
+		printf("%d\n", count);
 
-
-		if ( FD_ISSET( net->fd, &rr ) )
-		{
-
-			
-			printf("READ\n");
-
-			char * buf[512];
-			if ( net_read(srv, buf, 512, 0)  != -1)
-			{
-				printf("RRRRREEEEEEEAAAAAAAADDDDDDDD\n");
-				break;
-			}
-			else
-			{
-				printf("Fuck\n");
-			}
-
-
-			
-		}
-
-		if ( ok == 0 )
-		{
-
-			if ( hash )
-			{
-				r.type = REQUEST_PUT;
-
-				if ( type == 0 )
-					r.hash_segment.c = 50; //fichier
-				else
-					r.hash_segment.c = 51; //hash
-
-				r.hash_segment.size = 32; //obvious
-				memcpy( &(r.hash_segment.hash), hash, r.hash_segment.size );
-					
-				if ( net->version == NET_IPV4 )
-				{
-					r.client_segment.v4.c = 55;
-					r.client_segment.v4.ipv  = 6;
-					r.client_segment.v6.port = net->addr.v4.sin_port;
-					memcpy( &(r.client_segment.v4.address), &(net->addr.v4.sin_addr), sizeof(r.client_segment.v4.address) );
-				}
-				else
-				{
-					r.client_segment.v6.c    = 55;
-					r.client_segment.v6.ipv  = 18;
-					r.client_segment.v6.port = net->addr.v6.sin6_port;
-					memcpy( &(r.client_segment.v6.address), &(net->addr.v6.sin6_addr), sizeof(r.client_segment.v6.address) );
-				}
-
-
-				if ( net_write( net, &r, sizeof(r), 0) != -1)
-				{
-					char c[33];
-					c[32] = 0x00;
-					printf("OK  put hash :  ");
-					print_hash((unsigned char *)hash);
-					printf("\n");
-				}
-				else
-				{
-
-					printf("ERR put hash :  ");
-					print_hash( (unsigned char *)hash );
-					printf("\n");
-					return 1;
-				}
-			}
-
-			ok = 1;
-		}
+		t.tv_sec = 1;
 	}
 	printf("\n");
 
-
-
+	printf("is over?\n");
 
 	return 0;
 }
-
-
-
 
 int
 parse_arg(
@@ -195,13 +176,13 @@ parse_arg(
 	for (int i = 1; i < argc; i++) {
 		if (argv[i][0] == '-') {
 			if (argv[i][1] == '-') {
-				if (!strcmp(argv[i], "--(*port)")) {
+				if (!strcmp(argv[i], "--port")) {
 					if ((i + 1) < argc) {
 						(*port) = atol(argv[i+1]);
 
 						i++;
 					} else {
-						orz("--(*port) expects a (*port) number");
+						orz("--port expects a port number");
 
 						return 1;
 					}
@@ -226,7 +207,7 @@ parse_arg(
 
 							break;
 						} else {
-							orz("-p expects a (*port) number");
+							orz("-p expects a port number");
 
 							return 1;
 						}
@@ -271,15 +252,60 @@ parse_arg(
 	return 0;
 }
 
+void
+put_file(vec_void_t* files, const char* filename)
+{
+	RegisteredFile* rf = malloc(sizeof(*rf));
+
+	strncpy(rf->filename, filename, PATH_MAX - 1);
+
+	rf->status = STATUS_PUT;
+
+	rf->timeout = 1;
+
+	rf->hash_data = hash_data_new(filename);
+
+	vec_push(files, rf);
+
+	srsly("registered for PUT > %s", filename);
+}
+
+void
+get_file(vec_void_t* files, const char* filename)
+{
+	RegisteredFile* rf = malloc(sizeof(*rf));
+
+	strncpy(rf->filename, filename, PATH_MAX - 1);
+
+	rf->status = STATUS_PUT;
+
+	rf->timeout = 1;
+
+	rf->hash_data = malloc(sizeof(HashData));
+	rf->hash_data->filename = NULL;
+
+	/* FIXME: this needs to be assigned a real hash */
+	memset(rf->hash_data->digest, 0, 32);
+
+	vec_init(&rf->hash_data->chunkDigests);
+
+	vec_push(files, rf);
+
+	srsly("registered for GET > %s", filename);
+}
+
 int
 main ( int argc, const char* argv[] )
 {
 	const char* filename = NULL;
-	uint16_t port = 9000;
+	uint16_t tracker_port = 9000;
+	uint16_t peers_port = 9001;
 	const char* destination = NULL;
 	int command = 0;
 
-	if (0 != parse_arg(argc, argv, &filename, &port, &destination, &command))
+	vec_void_t registered_files;
+
+	if (0 != parse_arg(argc, argv, &filename, &tracker_port, &destination, &command))
 		return 1;
 
 	if (!command) {
@@ -288,7 +314,7 @@ main ( int argc, const char* argv[] )
 		return 1;
 	}
 
-	if (!filename) {
+	if ((command == CMD_PUT || command == CMD_GET) && !filename) {
 		orz("add a filename, please");
 
 		return 1;
@@ -300,16 +326,14 @@ main ( int argc, const char* argv[] )
 		return 1;
 	}
 
-	char buf[CHUNK_SIZE+64];
-	buf[0] = 0x00; //safety
-
-
+	vec_init(&registered_files);
 
 	struct net net;
 	struct net srv;
-	int err = net_init(&net, port, destination, NET_CLIENT, NET_IPV4);
+
+	int err = net_init(&net, tracker_port, destination, NET_CLIENT, NET_IPV4);
 	net_error(err);
-	err = net_init(&srv, port, "0.0.0.0", NET_SERVER, NET_IPV4);
+	err = net_init(&srv, peers_port, "0.0.0.0", NET_SERVER, NET_IPV4);
 	net_error(err);
 
 	if (net.version == 4)
@@ -317,30 +341,21 @@ main ( int argc, const char* argv[] )
 	else
 		srv.current = (union s_addr *) &(net.addr.v6);
 
-	srsly("Opening '%s'.", filename);
-	HashData * hd = hash_data_new(filename);
-
-	switch (command) {
-		case CMD_PRINT:
-			{
-				uint8_t c = REQUEST_PRINT; 
-				net_write( &net, &c, 1 ,0 );
-			}
-			break;
-		case CMD_PUT:
-			send_put_all(&net, &srv, hd);
-
-			break;
-		case CMD_LIST:
-			break;
-		case CMD_DEBUG: {
-				char c [] = "bonjour tout le monde ! ça va ? oui, bien et toi ? Tranquille !! :p";
-				net_write( &net, c, sizeof("bonjour tout le monde ! ça va ? oui, bien et toi ? Tranquille !! :p"), 0);
-			}
-			break;
+	if (command == CMD_PUT) {
+		put_file(&registered_files, filename);
+	} else if (command == CMD_GET) {
+		/* filename here is a hash */
+		get_file(&registered_files, filename);
 	}
 
-	hash_data_free(hd);
+	event_loop(&net, &srv, &registered_files);
+
+	for (int i = 0; i < registered_files.length; i++) {
+		/* FIXME: Not freeing ->hash_data… */
+		free(registered_files.data[i]);
+	}
+	vec_deinit(&registered_files);
 
 	return 0;
 }
+
