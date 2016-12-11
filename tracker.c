@@ -111,6 +111,7 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 			rh->time_to_live = 60;
 			memcpy(rh->hash, datagram->hash_segment.hash, sizeof(rh->hash));
 			memcpy(&rh->client, net->current, sizeof(rh->client));
+			((struct sockaddr_in*) &rh->client)->sin_port = datagram->client_segment.v4.port;
 
 			vec_push(registered_hashes, rh);
 
@@ -125,7 +126,7 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 		if (keepalive) {
 			datagram->type = REQUEST_KEEP_ALIVE_ACK;
 
-			/* Almost the same request types. The first fields are the exact same. */
+			/* Almost the same request types. The first fields are the exact same ones. */
 			net_write(net, buffer, sizeof(RequestKeepAliveAck), 0);
 		} else {
 			RequestPutError* answer = buffer;
@@ -183,7 +184,7 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 
 				memcpy(&client->address, &in->sin_addr, sizeof(client->address));
 
-				srsly("GET/ACK> - ipv4 - %s", address);
+				srsly("GET/ACK> - ipv4 - %s:%d", address, ntohs(in->sin_port));
 
 				answer->count += 1;
 				currentClient += sizeof(SegmentClient4);
@@ -198,7 +199,7 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 
 				memcpy(&client->address, &in->sin_addr, sizeof(client->address));
 
-				srsly("GET/ACK> - ipv6 - %s", address);
+				srsly("GET/ACK> - ipv6 - %s:%d", address, ntohs(in->sin_port));
 
 				answer->count += 1;
 				currentClient += sizeof(SegmentClient6);
@@ -258,8 +259,7 @@ handle_timeout(vec_void_t* registered_hashes)
 			vec_pop(registered_hashes);
 
 			wtf("hash expired");
-		} else
-			wtf("[ttl=%d]", rh->time_to_live);
+		}
 	}
 }
 
