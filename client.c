@@ -572,7 +572,7 @@ get_file(vec_void_t* files, const char* digest, const char* filename)
 
 		unsigned int digit;
 
-		sscanf(filename + 2 * i, "%02x", &digit);
+		int r = sscanf(digest + 2 * i, "%02x", &digit);
 
 		rf->hash_data->digest[i] = digit;
 	}
