@@ -47,6 +47,23 @@ send_put(struct net* net, const HashData * hd)
 
 	net_write(net, (void*) rq, sizeof(*rq), 0);
 
+	return err;
+}
+
+int
+send_keep_alive(struct net* net, const HashData * hd)
+{
+	int err = 0;
+	char buffer[sizeof(RequestKeepAlive)];
+	RequestPut* rq = (void*) buffer;
+
+	rq->type = REQUEST_KEEP_ALIVE;
+
+	rq->hash_segment.c = 50;
+	rq->hash_segment.size = 32;
+	memcpy((void*) rq->hash_segment.hash, hd->digest, sizeof(rq->hash_segment.hash));
+
+	net_write(net, (void*) rq, sizeof(*rq), 0);
 
 	return err;
 }
@@ -71,8 +88,6 @@ handle_timeout(struct net* tracker, vec_void_t* registered_files)
 	RegisteredFile* rf;
 
 	vec_foreach(registered_files, rf, i) {
-		printf(" -> %s (%s) %i\n", rf->filename, status_string(rf), rf->timeout);
-
 		if (--rf->timeout == 0) {
 			switch (rf->status) {
 				case STATUS_PUT:
@@ -92,7 +107,8 @@ handle_timeout(struct net* tracker, vec_void_t* registered_files)
 			}
 		} else if (rf->status == STATUS_KEEP_ALIVE) {
 			if (rf->timeout <= 30 && rf->timeout % 5 == 0) {
-				orz("should be sending new KEEP_ALIVE here");
+				srsly("KEEP-ALIVE> %s", hash_data_schar(rf->hash_data->digest));
+				send_keep_alive(tracker, rf->hash_data);
 			}
 		}
 	}
@@ -106,8 +122,7 @@ handle_ec(char* buffer, int size)
 	if ((unsigned) size < sizeof(*r) || (unsigned) size < sizeof(*r) + r->size) {
 		orz("received broken EC, datagram was too short");
 
-		return;
-			
+		return;	
 	}
 
 	if (r->subtype == 0) {
@@ -177,7 +192,6 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 					break;
 			}
 		}
-		printf("%d\n", count);
 
 		t.tv_sec = 1;
 	}

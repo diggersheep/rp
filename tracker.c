@@ -62,9 +62,10 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 		printf(" from %s\n", address);
 	}
 
-	int r =
-		check_segment_file_hash(&datagram->hash_segment) &&
-		check_segment_client(&datagram->client_segment);
+	int r = check_segment_file_hash(&datagram->hash_segment);
+
+	if (keepalive)
+		r = r && check_segment_client(&datagram->client_segment);
 
 	if (!r) {
 		orz("Dropping PUT request.");
@@ -360,7 +361,6 @@ main(int argc, const char** argv)
 				break;
 		}
 	}
-
 
 	/* FIXME: Data accessed by pointer needs to be freed. */
 	vec_deinit(&registered_hashes);
