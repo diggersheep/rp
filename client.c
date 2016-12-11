@@ -84,6 +84,16 @@ send_list ( const unsigned char * hash, RegisteredFile * rf )
 	);
 	net_error(a);
 
+	char address[64];
+	inet_ntop(
+		addr->v4.ipv == 6 ? AF_INET : AF_INET6,
+		(void*) &client->v4.address, address, sizeof(address)
+	);
+
+	srsly("%d\n", client->v4.ipv);
+	srsly(" - new pair: %s:%d - ", address, ntohs(client->v4.port));
+
+
 	ret = net_write( peer, rq, sizeof(*rq), 0);
 	if( ret > 0 )
 	{
@@ -95,8 +105,8 @@ send_list ( const unsigned char * hash, RegisteredFile * rf )
 	}
 	else
 	{
-		srsly("  NO SEND");
-		perror("ghj");
+		srsly("  NOT SEND");
+		perror("");
 	}
 	
 	net_shutdown(peer);
