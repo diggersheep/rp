@@ -175,7 +175,8 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 
 	vec_foreach (registered_hashes, rh, i) {
 		if (!memcmp(rh->hash, datagram->hash_segment.hash, sizeof(*rh->hash))) {
-			inet_ntop(rh->client.sa_family, &rh->client, address, sizeof(address));
+			struct sockaddr_in* saddr = (void*) &rh->client;
+			inet_ntop(rh->client.sa_family, &saddr->sin_addr, address, sizeof(address));
 
 			srsly("GET/ACK> %s", hash_data_schar(rh->hash));
 
