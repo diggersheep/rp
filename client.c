@@ -203,6 +203,8 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 			net_error(count);
 		} else if (count == 0) { /* timeout */
 			handle_timeout(net, registered_files);
+
+			t.tv_sec = 1;
 		} else {
 			RequestType type = buffer[0];
 
@@ -218,8 +220,6 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 					break;
 			}
 		}
-
-		t.tv_sec = 1;
 	}
 
 	return 0;
