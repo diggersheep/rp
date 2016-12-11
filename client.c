@@ -514,7 +514,6 @@ handle_get_ack( char* buffer, int count, vec_void_t* registered_files)
 				size_t segment_size =
 					s->v4.ipv == 6 ? sizeof(SegmentClient4) : sizeof(SegmentClient6);
 
-				current_offset += segment_size;
 				count -= segment_size;
 
 				if (count < 0) {
@@ -525,6 +524,8 @@ handle_get_ack( char* buffer, int count, vec_void_t* registered_files)
 				void* clone = malloc(segment_size);
 
 				memcpy(clone, current_offset, segment_size);
+
+				current_offset += segment_size;
 
 				vec_push(&rf->related_clients, clone);
 
