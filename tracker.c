@@ -166,13 +166,13 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 	int i;
 	RegisteredHash* rh;
 	char address[INET6_ADDRSTRLEN];
-	
+
+	srsly("GET/ACK> %s", hash_data_schar(datagram->hash_segment.hash));
+
 	vec_foreach (registered_hashes, rh, i) {
 		if (!memcmp(rh->hash, datagram->hash_segment.hash, sizeof(*rh->hash))) {
 			struct sockaddr_in* saddr = (void*) &rh->client;
 			inet_ntop(rh->client.sa_family, &saddr->sin_addr, address, sizeof(address));
-
-			srsly("GET/ACK> %s", hash_data_schar(rh->hash));
 
 			if (rh->client.sa_family == AF_INET) {
 				SegmentClient4* client = (void*) currentClient;
@@ -184,7 +184,7 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 
 				memcpy(&client->address, &in->sin_addr, sizeof(client->address));
 
-				srsly("GET/ACK> - ipv4 - %s:%d", address, ntohs(in->sin_port));
+				srsly(" - sending pair: %s:%d -", address, ntohs(in->sin_port));
 
 				answer->count += 1;
 				currentClient += sizeof(SegmentClient4);
@@ -199,7 +199,7 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 
 				memcpy(&client->address, &in->sin_addr, sizeof(client->address));
 
-				srsly("GET/ACK> - ipv6 - %s:%d", address, ntohs(in->sin_port));
+				srsly(" - sending pair: %s:%d - ", address, ntohs(in->sin_port));
 
 				answer->count += 1;
 				currentClient += sizeof(SegmentClient6);
@@ -211,7 +211,6 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 		}
 	}
 
-	wtf("GET/ACK> %d", datagram_size);
 	net_write(net, answer, datagram_size, 0);
 }
 
