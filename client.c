@@ -11,6 +11,8 @@
 
 #include "client.h"
 
+#include <time.h>
+
 #define CMD_PUT 1
 #define CMD_GET 2
 #define CMD_PRINT 3
@@ -36,9 +38,31 @@ send_ec_str(struct net* net, const char* str)
 }
 
 int
-send_list ( struct net * net, const unsigned char * hash )
+send_list ( const unsigned char * hash, RegisteredFile * rf )
 {
 	if ( !hash ) return NET_FAIL;
+
+	int ret = 0;
+	unsigned char ip[64];
+	short port;
+
+	SegmentClient * client;
+
+	if ( rf->related_clients.length == 1 )
+	{
+		client = rf->related_clients.data[0];
+	}
+	else
+	{
+		client = rf->related_clients.data[ rand() % rf->related_clients.length ];
+	}
+
+	char buf[sizeof(struct net)];
+	struct net * peer = (void*) buf;
+
+	struct timeval t;
+	t.tv_sec  = 1;
+	t.tv_usec = 0;
 
 	unsigned char buffer[sizeof(RequestList)];
 	RequestList * rq = (void*) buffer;
@@ -53,13 +77,38 @@ send_list ( struct net * net, const unsigned char * hash )
 		32
 	);
 
-	return net_write(net, rq, sizeof(*rq), 32);
+	
+	
+	/*
+	inet_ntop(
+		client->v4.ipv == 6 ? AF_INET : AF_INET6,
+		(void*)client->v4.address,
+		ip,
+		64
+	);*/
+/*
+
+	net_client(
+		peer,
+		port,
+		ip, 
+		client->v4.ipv == 6 ? NET_IPV4 : NET_IPV6
+	);
+
+	printf("  >> IP %s PORT %d\n", );
+*/
+//	ret = net_write( peer, rq, sizeof(*rq), 0);	
+//	net_shutdown(peer);
+
+	return ret;
 }
 
 void
 handle_list ( char * buffer, vec_void_t * rf , struct net * net )
 {
 	RequestList * rq = (void*) buffer;
+
+	printf("xcfghnk;mù\n");
 
 	if ( rq->hash.c == 50 && rq->hash.size == 32 )
 	{
@@ -77,7 +126,6 @@ handle_list ( char * buffer, vec_void_t * rf , struct net * net )
 			{
 				if ( hd->digest[i] != rq->hash.hash[i] )
 				{
-		
 					check = 1;
 					break;
 				}
@@ -258,7 +306,6 @@ status_string(RegisteredFile* rf)
 		case STATUS_LIST:
 			return "LIST";
 	}
-	
 }
 
 
@@ -290,9 +337,8 @@ handle_timeout(struct net* tracker, struct net* server, vec_void_t* registered_f
 					break;
 				case STATUS_LIST:
 					srsly("LIST> %s", hash_data_schar(rf->hash_data->digest));
-					send_list( server, rf->hash_data->digest );
+					send_list( rf->hash_data->digest, rf );
 					break;
-
 			}
 		} else if (rf->status == STATUS_KEEP_ALIVE) {
 			if (rf->timeout <= 30 && rf->timeout % 5 == 0) {
@@ -418,7 +464,7 @@ handle_keep_alive_error(struct net* tracker, char* buffer, int size, vec_void_t*
 }
 
 void
-handle_get_ack(char* buffer, int count, vec_void_t* registered_files)
+handle_get_ack( char* buffer, int count, vec_void_t* registered_files)
 {
 	RequestGetAck* r = (void*) buffer;
 	int i;
@@ -455,7 +501,7 @@ handle_get_ack(char* buffer, int count, vec_void_t* registered_files)
 				current_offset += segment_size;
 				count -= segment_size;
 
-				if (count <= 0)
+				if (count < 0)
 					break;
 
 				void* clone = malloc(segment_size);
@@ -463,11 +509,13 @@ handle_get_ack(char* buffer, int count, vec_void_t* registered_files)
 				memcpy(clone, current_offset, segment_size);
 
 				vec_push(&rf->related_clients, clone);
+
 			}
 
 			rf->timeout = 30;
 
 			srsly("GET/ACK << %s", hash_data_schar(r->hash_segment.hash));
+			send_list( rf->hash_data->digest, registered_files );
 
 			return;
 		}
@@ -524,7 +572,9 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 				case REQUEST_LIST_ACK:
 					handle_list(buffer, registered_files, net);
 					break;
-
+				default:
+					orz("Unknowned request");
+					break;
 			}
 		}
 	}
@@ -699,6 +749,7 @@ parse_arg(
 int
 main ( int argc, const char* argv[] )
 {
+	srand(time(NULL));
 	uint16_t tracker_port = 9000;
 	uint16_t peers_port = 9001;
 	const char* destination = NULL;

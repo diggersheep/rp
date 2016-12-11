@@ -13,10 +13,11 @@ typedef struct {
 	enum {
 		STATUS_PUT,
 		STATUS_KEEP_ALIVE,
-		STATUS_GET
+		STATUS_GET,
+		STATUS_LIST
 	} status;
 	int timeout;
-	vec_void_t related_clients;
+	vec_void_t related_clients; //SegmentClient
 } RegisteredFile;
 
 #endif
