@@ -57,6 +57,9 @@ typedef enum {
 	REQUEST_KEEP_ALIVE = 114,
 	REQUEST_KEEP_ALIVE_ACK = 115,
 
+	REQUEST_PUT_ERROR = 123,
+	REQUEST_KEEP_ALIVE_ERROR = 125,
+
 	/* Debug/orz */
 	REQUEST_PRINT = 150,
 	REQUEST_EC = 42
@@ -86,6 +89,8 @@ typedef struct __attribute__((__packed__)) {
 	SegmentClient client_segment;
 } RequestPutAck;
 
+typedef RequestPutAck RequestPutError;
+
 typedef struct __attribute__((__packed__)) {
 	uint8_t type;
 	SegmentFileHash hash_segment;
@@ -97,6 +102,8 @@ typedef struct __attribute__((__packed__)) {
 	SegmentFileHash hash_segment;
 	SegmentClient client_segment;
 } RequestKeepAliveAck;
+
+typedef RequestKeepAliveAck RequestKeepAliveError;
 
 typedef struct __attribute__((__packed__)) {
 	uint8_t type;

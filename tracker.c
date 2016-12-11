@@ -91,18 +91,13 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 
 	if (!hashExists) {
 		if (keepalive) {
-			RequestEC* answer = buffer;
+			RequestKeepAliveError* answer = buffer;
 
-			orz("received KEEP_ALIVE on unowned hash");
+			orz(" - file is unregistered, sending KEEP-ALIVE/ERROR - ");
 
-			answer->type = REQUEST_EC;
-			answer->subtype = 0;
+			answer->type = REQUEST_KEEP_ALIVE_ERROR;
 
-			strcpy((char*) answer->data, "can't keep an unregistered hash alive");
-
-			answer->size = strlen((const char*) answer->data);
-
-			net_write(net, buffer, sizeof(*answer) + answer->size, 0);
+			net_write(net, buffer, sizeof(*answer), 0);
 		} else {
 			RegisteredHash* rh;
 
@@ -346,7 +341,9 @@ main(int argc, const char** argv)
 			case REQUEST_LIST_ACK:
 			case REQUEST_GET_ACK:
 			case REQUEST_PUT_ACK:
+			case REQUEST_PUT_ERROR:
 			case REQUEST_KEEP_ALIVE_ACK:
+			case REQUEST_KEEP_ALIVE_ERROR:
 				orz("Got an unhandled request (type = %u).", type);
 				break;
 			case REQUEST_EC:

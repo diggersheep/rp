@@ -117,7 +117,8 @@ handle_timeout(struct net* tracker, struct net* server, vec_void_t* registered_f
 					rf->timeout = 5;
 					break;
 				case STATUS_KEEP_ALIVE:
-					orz("should be sending new PUT here");
+					orz("PUT> %s", hash_data_schar(rf->hash_data->digest));
+					send_put(tracker, rf->hash_data);
 					rf->status = STATUS_PUT;
 					rf->timeout = 5;
 					break;
@@ -180,14 +181,14 @@ handle_put_ack(char* buffer, int size, vec_void_t* registered_files)
 }
 
 void
-handle_keep_alive_ack(char* buffer, int size, vec_void_t* registered_files)
+handle_put_error(char* buffer, int size, vec_void_t* registered_files)
 {
-	RequestKeepAliveAck* r = (void*) buffer;
+	RequestPutError* r = (void*) buffer;
 	int i;
 	RegisteredFile* rf;
 
 	if ((unsigned) size < sizeof(*r)) {
-		orz("received broken PUT/ACK, datagram too short");
+		orz("received broken PUT/ERROR, datagram too short");
 
 		return;
 	}
@@ -196,6 +197,54 @@ handle_keep_alive_ack(char* buffer, int size, vec_void_t* registered_files)
 		if (!memcmp(rf->hash_data->digest, r->hash_segment.hash, 32)) {
 			rf->timeout = 60;
 			rf->status = STATUS_KEEP_ALIVE;
+
+			return;
+		}
+	}
+}
+
+void
+handle_keep_alive_ack(char* buffer, int size, vec_void_t* registered_files)
+{
+	RequestKeepAliveAck* r = (void*) buffer;
+	int i;
+	RegisteredFile* rf;
+
+	if ((unsigned) size < sizeof(*r)) {
+		orz("received broken KEEP-ALIVE/ACK, datagram too short");
+
+		return;
+	}
+
+	vec_foreach (registered_files, rf, i) {
+		if (!memcmp(rf->hash_data->digest, r->hash_segment.hash, 32)) {
+			rf->timeout = 60;
+			rf->status = STATUS_KEEP_ALIVE;
+
+			return;
+		}
+	}
+}
+
+void
+handle_keep_alive_error(struct net* tracker, char* buffer, int size, vec_void_t* registered_files)
+{
+	RequestKeepAliveError* r = (void*) buffer;
+	int i;
+	RegisteredFile* rf;
+
+	if ((unsigned) size < sizeof(*r)) {
+		orz("received broken KEEP-ALIVE/ERROR, datagram too short");
+
+		return;
+	}
+
+	vec_foreach (registered_files, rf, i) {
+		if (!memcmp(rf->hash_data->digest, r->hash_segment.hash, 32)) {
+			send_put(tracker, rf->hash_data);
+
+			rf->timeout = 60;
+			rf->status = STATUS_PUT;
 
 			return;
 		}
@@ -294,8 +343,14 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 				case REQUEST_PUT_ACK:
 					handle_put_ack(buffer, count, registered_files);
 					break;
+				case REQUEST_PUT_ERROR:
+					handle_put_error(buffer, count, registered_files);
+					break;
 				case REQUEST_KEEP_ALIVE_ACK:
 					handle_keep_alive_ack(buffer, count, registered_files);
+					break;
+				case REQUEST_KEEP_ALIVE_ERROR:
+					handle_keep_alive_error(net, buffer, count, registered_files);
 					break;
 				case REQUEST_GET_ACK:
 					handle_get_ack(buffer, count, registered_files);
