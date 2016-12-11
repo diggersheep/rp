@@ -140,7 +140,7 @@ net.o.clean:
 
 net.o.uninstall:
 
-tracker.o: tracker.c ./common.h ./hash.h ./net.h ./tracker.h
+tracker.o: tracker.c ./common.h ./hash.h ./net.h ./debug.h ./tracker.h
 	@echo '[01;34m  CC >    [01;37mtracker.o[00m'
 	$(Q)$(CC) $(CFLAGS)  -c tracker.c   -o tracker.o
 
@@ -152,7 +152,7 @@ tracker.o.clean:
 
 tracker.o.uninstall:
 
-client.o: client.c ./net.h ./common.h ./hash.h
+client.o: client.c ./net.h ./common.h ./hash.h ./debug.h ./client.h
 	@echo '[01;34m  CC >    [01;37mclient.o[00m'
 	$(Q)$(CC) $(CFLAGS)  -c client.c   -o client.o
 
@@ -224,6 +224,7 @@ $(PACKAGE)-$(VERSION).tar.gz: distdir
 		$(PACKAGE)-$(VERSION)/hash.h \
 		$(PACKAGE)-$(VERSION)/sha256/sha256.h \
 		$(PACKAGE)-$(VERSION)/vec/vec.h \
+		$(PACKAGE)-$(VERSION)/client.h \
 		$(PACKAGE)-$(VERSION)/debug.h
 
 dist-xz: $(PACKAGE)-$(VERSION).tar.xz
@@ -245,6 +246,7 @@ $(PACKAGE)-$(VERSION).tar.xz: distdir
 		$(PACKAGE)-$(VERSION)/hash.h \
 		$(PACKAGE)-$(VERSION)/sha256/sha256.h \
 		$(PACKAGE)-$(VERSION)/vec/vec.h \
+		$(PACKAGE)-$(VERSION)/client.h \
 		$(PACKAGE)-$(VERSION)/debug.h
 
 dist-bz2: $(PACKAGE)-$(VERSION).tar.bz2
@@ -266,6 +268,7 @@ $(PACKAGE)-$(VERSION).tar.bz2: distdir
 		$(PACKAGE)-$(VERSION)/hash.h \
 		$(PACKAGE)-$(VERSION)/sha256/sha256.h \
 		$(PACKAGE)-$(VERSION)/vec/vec.h \
+		$(PACKAGE)-$(VERSION)/client.h \
 		$(PACKAGE)-$(VERSION)/debug.h
 
 help:
