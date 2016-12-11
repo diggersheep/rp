@@ -323,6 +323,8 @@ handle_put_error(char* buffer, int size, vec_void_t* registered_files)
 
 	vec_foreach (registered_files, rf, i) {
 		if (!memcmp(rf->hash_data->digest, r->hash_segment.hash, 32)) {
+			wtf("PUT/ERROR << %s", hash_data_schar(r->hash_segment.hash));
+
 			rf->timeout = 60;
 			rf->status = STATUS_KEEP_ALIVE;
 
@@ -530,7 +532,7 @@ get_file(vec_void_t* files, const char* digest, const char* filename)
 
 		unsigned int digit;
 
-		int r = sscanf(digest + 2 * i, "%02x", &digit);
+		sscanf(digest + 2 * i, "%02x", &digit);
 
 		rf->hash_data->digest[i] = digit;
 	}

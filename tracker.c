@@ -123,18 +123,13 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 			/* Almost the same request types. The first fields are the exact same. */
 			net_write(net, buffer, sizeof(RequestKeepAliveAck), 0);
 		} else {
-			RequestEC* answer = buffer;
+			RequestPutError* answer = buffer;
 
 			wtf("hash was PUT but already registered");
 
-			answer->type = REQUEST_EC;
-			answer->subtype = 0;
+			answer->type = REQUEST_PUT_ERROR;
 
-			strcpy((char*) answer->data, "hash is already registered");
-
-			answer->size = strlen((const char*) answer->data);
-
-			net_write(net, buffer, sizeof(*answer) + answer->size, 0);
+			net_write(net, buffer, sizeof(*answer), 0);
 		}
 	}
 }
