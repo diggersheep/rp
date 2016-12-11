@@ -313,9 +313,9 @@ main ( int argc, const char* argv[] )
 	net_error(err);
 
 	if (net.version == 4)
-		srv.current = (struct sockaddr *)&(net.addr.v4);
+		srv.current = (union s_addr *) &(net.addr.v4);
 	else
-		srv.current = (struct sockaddr *)&(net.addr.v6);
+		srv.current = (union s_addr *) &(net.addr.v6);
 
 	srsly("Opening '%s'.", filename);
 	HashData * hd = hash_data_new(filename);
