@@ -157,6 +157,29 @@ handle_put_ack(char* buffer, int size, vec_void_t* registered_files)
 	}
 }
 
+void
+handle_keep_alive_ack(char* buffer, int size, vec_void_t* registered_files)
+{
+	RequestKeepAliveAck* r = (void*) buffer;
+	int i;
+	RegisteredFile* rf;
+
+	if ((unsigned) size < sizeof(*r)) {
+		orz("received broken PUT/ACK, datagram too short");
+
+		return;
+	}
+
+	vec_foreach (registered_files, rf, i) {
+		if (!memcmp(rf->hash_data->digest, r->hash_segment.hash, 32)) {
+			rf->timeout = 60;
+			rf->status = STATUS_KEEP_ALIVE;
+
+			return;
+		}
+	}
+}
+
 int
 event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 {
@@ -189,6 +212,9 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 					break;
 				case REQUEST_PUT_ACK:
 					handle_put_ack(buffer, count, registered_files);
+					break;
+				case REQUEST_KEEP_ALIVE_ACK:
+					handle_keep_alive_ack(buffer, count, registered_files);
 					break;
 			}
 		}
