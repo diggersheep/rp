@@ -77,8 +77,13 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 	RegisteredHash* rh;
 
 	vec_foreach (registered_hashes, rh, i) {
+		struct sockaddr_in* saddr = (void*) &rh->client;
 		int sameHash = memcmp(rh->hash, datagram->hash_segment.hash, sizeof(rh->hash)) == 0;
-		int sameHost = memcmp(&rh->client, net->current, sizeof(*net->current));
+		int sameHost = (saddr->sin_family == net->current->v4.sin_family) &&
+			(0 == memcmp(&saddr->sin_addr, &net->current->v4.sin_addr, saddr->sin_family == AF_INET ? 4 : 16));
+
+		if (!keepalive)
+			sameHost = sameHost && (saddr->sin_port == datagram->client_segment.v4.port);
 
 		if (sameHash && sameHost) {
 			hashExists = 1;
@@ -123,18 +128,13 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 			/* Almost the same request types. The first fields are the exact same. */
 			net_write(net, buffer, sizeof(RequestKeepAliveAck), 0);
 		} else {
-			RequestEC* answer = buffer;
+			RequestPutError* answer = buffer;
 
 			wtf("hash was PUT but already registered");
 
-			answer->type = REQUEST_EC;
-			answer->subtype = 0;
+			answer->type = REQUEST_PUT_ERROR;
 
-			strcpy((char*) answer->data, "hash is already registered");
-
-			answer->size = strlen((const char*) answer->data);
-
-			net_write(net, buffer, sizeof(*answer) + answer->size, 0);
+			net_write(net, buffer, sizeof(*answer), 0);
 		}
 	}
 }

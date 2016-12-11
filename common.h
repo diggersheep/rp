@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 
+#define FRAGMENT_SIZE 1000
 #define CHUNK_SIZE 1000 * 1000
 
 #include "vec/vec.h"
@@ -21,7 +22,7 @@ typedef struct __attribute__((__packed__)) {
 	uint16_t index;     /* fragment index */
 	uint16_t max_index; /* max fragment index */
 	uint8_t  data[0];   /* variable-length raw data. */
-} SemgentChunkFragment;
+} SegmentChunkFragment;
 
 
 typedef struct __attribute__((__packed__)) {
@@ -143,15 +144,15 @@ typedef struct __attribute__((__packed__)) {
 	uint16_t size; /* file hash and chunk hash size */
 	SegmentFileHash  file_hash_segment;
 	SegmentChunkHash chunk_hash_segment;
-} RequestGetCli;
+} RequestGetClient;
 
 typedef struct __attribute__((__packed__)) {
 	uint8_t  type; /* must be 101 */
 	uint16_t size; /* file hash and chunk hash size */
 	SegmentFileHash      file_hash_segment;
 	SegmentChunkHash     chunk_hash_segment;
-	SemgentChunkFragment fragment;
-} RequestGetRepCli;
+	SegmentChunkFragment fragment;
+} RequestGetClientAck;
 
 
 

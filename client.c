@@ -185,8 +185,8 @@ send_get_cli ( struct net* net, const HashData* hd, short index )
 
 	int err = 0;
 
-	char buffer[sizeof(RequestGetCli)];
-	RequestGetCli * rq = (void*) buffer;
+	char buffer[sizeof(RequestGetClient)];
+	RequestGetClient * rq = (void*) buffer;
 
 	rq->type   = 100;
 
@@ -400,6 +400,8 @@ handle_put_error(char* buffer, int size, vec_void_t* registered_files)
 
 	vec_foreach (registered_files, rf, i) {
 		if (!memcmp(rf->hash_data->digest, r->hash_segment.hash, 32)) {
+			wtf("PUT/ERROR << %s", hash_data_schar(r->hash_segment.hash));
+
 			rf->timeout = 60;
 			rf->status = STATUS_KEEP_ALIVE;
 
@@ -514,6 +516,55 @@ handle_get_ack( char* buffer, int count, vec_void_t* registered_files)
 	}
 }
 
+void
+handle_get_client(struct net* net, char* buffer, int count, vec_void_t* registered_files)
+{
+	RegisteredFile* rf;
+	RequestGetClient* r = (void*) buffer;
+	int i;
+
+	if ((unsigned) count < sizeof(*r)) {
+		orz(" - received broken GET-CLIENT - ");
+
+		return;
+	}
+
+	vec_foreach (registered_files, rf, i) {
+		if (!memcmp(rf->hash_data->digest, r->chunk_hash_segment.hash, 32)) {
+			RequestGetClientAck* answer = (void*) buffer;
+
+			srsly("GET-CLIENT> %s", rf->filename);
+
+			FILE* f = fopen(rf->filename, "r");
+
+			if (!f) {
+				orz("fopen");
+
+				return;
+			}
+
+			fseek(f, r->chunk_hash_segment.index, SEEK_SET);
+
+			answer->fragment.index = answer->chunk_hash_segment.index;
+
+			/* FIXME: does not wurk, update once handle_list_ack is done */
+			for (int j = 0; j < CHUNK_SIZE / FRAGMENT_SIZE; j++) {
+				int r = fread(answer->fragment.data, FRAGMENT_SIZE, 1, f);
+
+				answer->fragment.c = 60;
+				answer->fragment.size = r;
+				answer->fragment.index += 1000;
+
+				net_write(net, answer, sizeof(*answer) + answer->fragment.size, 0);
+			}
+		}
+	}
+
+	r->type = REQUEST_GET_CLIENT_ACK;
+
+	return;
+}
+
 int
 event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 {
@@ -614,7 +665,7 @@ get_file(vec_void_t* files, const char* digest, const char* filename)
 
 		unsigned int digit;
 
-		int r = sscanf(digest + 2 * i, "%02x", &digit);
+		sscanf(digest + 2 * i, "%02x", &digit);
 
 		rf->hash_data->digest[i] = digit;
 	}
@@ -775,7 +826,16 @@ main ( int argc, const char* argv[] )
 	event_loop(&net, &srv, &registered_files);
 
 	for (int i = 0; i < registered_files.length; i++) {
-		/* FIXME: Not freeing ->hash_data… */
+		RegisteredFile* rf = registered_files.data[i];
+
+		hash_data_free(rf);
+
+		for (int j = 0; j < rf->related_clients.length; j++)
+			free(rf->related_clients.data[j]);
+
+		for (int j = 0; j < rf->received_fragments.length; j++)
+			free(rf->related_clients.data[j]);
+
 		free(registered_files.data[i]);
 	}
 	vec_deinit(&registered_files);
