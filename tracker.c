@@ -77,8 +77,13 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 	RegisteredHash* rh;
 
 	vec_foreach (registered_hashes, rh, i) {
+		struct sockaddr_in* saddr = (void*) &rh->client;
 		int sameHash = memcmp(rh->hash, datagram->hash_segment.hash, sizeof(rh->hash)) == 0;
-		int sameHost = memcmp(&rh->client, net->current, sizeof(*net->current));
+		int sameHost = (saddr->sin_family == net->current->v4.sin_family) &&
+			(0 == memcmp(&saddr->sin_addr, &net->current->v4.sin_addr, saddr->sin_family == AF_INET ? 4 : 16));
+
+		if (!keepalive)
+			sameHost = sameHost && (saddr->sin_port == datagram->client_segment.v4.port);
 
 		if (sameHash && sameHost) {
 			hashExists = 1;

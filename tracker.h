@@ -7,6 +7,7 @@
 typedef struct {
 	unsigned char hash[32];
 	struct sockaddr client;
+	char padding[16];
 	int time_to_live;
 } RegisteredHash;
 
