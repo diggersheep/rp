@@ -55,10 +55,6 @@ send_list ( const unsigned char * hash, RegisteredFile * rf )
 
 	client = rf->related_clients.data[ rand() % rf->related_clients.length ];
 
-//	client->v4.port = htons(9001);
-	srsly( "port %d", ntohs(client->v4.port)	 );
-
-
 	char buf[sizeof(struct net)];
 	struct net * peer = (void*) buf;
 
@@ -79,18 +75,30 @@ send_list ( const unsigned char * hash, RegisteredFile * rf )
 		32
 	);
 
-
-
-
-	net_init_raw(
+	int a = net_init_raw(
 		peer,
 		client->v4.port,
 		(void*)&client->v4.address,
 		NET_CLIENT,
 		(client->v4.ipv == 6) ? NET_IPV4 : NET_IPV6
 	);
+	net_error(a);
 
-	ret = net_write( peer, rq, sizeof(*rq), 0);	
+	ret = net_write( peer, rq, sizeof(*rq), 0);
+	if( ret > 0 )
+	{
+		srsly("  SEND");
+	}
+	else if ( ret == 0 )
+	{
+		srsly("  Time");
+	}
+	else
+	{
+		srsly("  NO SEND");
+		perror("ghj");
+	}
+	
 	net_shutdown(peer);
 
 	return ret;
@@ -521,7 +529,6 @@ handle_get_ack( char* buffer, int count, vec_void_t* registered_files)
 
 			rf->timeout = 30;
 
-			srsly("GET/ACK << %s", hash_data_schar(r->hash_segment.hash));
 			send_list( rf->hash_data->digest, rf );
 			return;
 		}
@@ -537,7 +544,6 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 
 	if ((unsigned) count < sizeof(*r)) {
 		orz(" - received broken GET-CLIENT - ");
-
 		return;
 	}
 
@@ -551,7 +557,6 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 
 			if (!f) {
 				orz("fopen");
-
 				return;
 			}
 
