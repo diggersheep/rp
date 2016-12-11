@@ -214,7 +214,7 @@ send_get_cli ( struct net* net, const HashData* hd, short index )
 }
 
 int
-send_put(struct net* net, const HashData* hd)
+send_put(struct net* net, struct net* srv, const HashData* hd)
 {
 	int err = 0;
 	char buffer[sizeof(RequestPut)];
@@ -233,7 +233,7 @@ send_put(struct net* net, const HashData* hd)
 		rq->client_segment.v4.ipv = 18;
 
 	struct sockaddr_in* saddr = (struct sockaddr_in*) &net->addr;
-	rq->client_segment.v4.port = saddr->sin_port;
+	rq->client_segment.v4.port = srv->addr.v4.sin_port;
 
 	memcpy(
 		(void*) rq->client_segment.v6.address,
@@ -314,12 +314,12 @@ handle_timeout(struct net* tracker, struct net* server, vec_void_t* registered_f
 			switch (rf->status) {
 				case STATUS_PUT:
 					srsly("PUT> %s", hash_data_schar(rf->hash_data->digest));
-					send_put(tracker, rf->hash_data);
+					send_put(tracker, server, rf->hash_data);
 					rf->timeout = 5;
 					break;
 				case STATUS_KEEP_ALIVE:
 					orz("PUT> %s", hash_data_schar(rf->hash_data->digest));
-					send_put(tracker, rf->hash_data);
+					send_put(tracker, server, rf->hash_data);
 					rf->status = STATUS_PUT;
 					rf->timeout = 5;
 					break;
@@ -434,7 +434,7 @@ handle_keep_alive_ack(char* buffer, int size, vec_void_t* registered_files)
 }
 
 void
-handle_keep_alive_error(struct net* tracker, char* buffer, int size, vec_void_t* registered_files)
+handle_keep_alive_error(struct net* tracker, struct net* server, char* buffer, int size, vec_void_t* registered_files)
 {
 	RequestKeepAliveError* r = (void*) buffer;
 	int i;
@@ -448,7 +448,7 @@ handle_keep_alive_error(struct net* tracker, char* buffer, int size, vec_void_t*
 
 	vec_foreach (registered_files, rf, i) {
 		if (!memcmp(rf->hash_data->digest, r->hash_segment.hash, 32)) {
-			send_put(tracker, rf->hash_data);
+			send_put(tracker, server, rf->hash_data);
 
 			rf->timeout = 60;
 			rf->status = STATUS_PUT;
@@ -620,7 +620,7 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 					handle_keep_alive_ack(buffer, count, registered_files);
 					break;
 				case REQUEST_KEEP_ALIVE_ERROR:
-					handle_keep_alive_error(net, buffer, count, registered_files);
+					handle_keep_alive_error(net, srv, buffer, count, registered_files);
 					break;
 				case REQUEST_GET_ACK:
 					handle_get_ack(buffer, count, registered_files);
