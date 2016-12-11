@@ -64,7 +64,7 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 
 	int r = check_segment_file_hash(&datagram->hash_segment);
 
-	if (keepalive)
+	if (!keepalive)
 		r = r && check_segment_client(&datagram->client_segment);
 
 	if (!r) {
