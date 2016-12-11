@@ -114,7 +114,7 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 
 			vec_push(registered_hashes, rh);
 
-			srsly("file registered");
+			srsly(" - new file registered -");
 
 			datagram->type = REQUEST_PUT_ACK;
 
@@ -123,8 +123,6 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 		}
 	} else {
 		if (keepalive) {
-			srsly("keeping file alive");
-
 			datagram->type = REQUEST_KEEP_ALIVE_ACK;
 
 			/* Almost the same request types. The first fields are the exact same. */
@@ -132,7 +130,7 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 		} else {
 			RequestEC* answer = buffer;
 
-			wtf("hash was put but already registered");
+			wtf("hash was PUT but already registered");
 
 			answer->type = REQUEST_EC;
 			answer->subtype = 0;
@@ -309,18 +307,18 @@ main(int argc, const char** argv)
 
 		RequestType type = buffer[0];
 
-		printf("%d: ", count);
-
 		/* FIXME: For each case, assert() that count is more than the matching expected datagram size. */
 		switch (type) {
 			case REQUEST_PUT:
+				srsly("PUT <<");
 				handle_put(&net, buffer, &registered_hashes, 0);
 				break;
 			case REQUEST_KEEP_ALIVE:
+				srsly("KEEP_ALIVE <<");
 				handle_put(&net, buffer, &registered_hashes, 1);
 				break;
 			case REQUEST_GET:
-				printf("Client sent GET request…\n");
+				srsly("GET <<");
 				handle_get(&net, buffer, &registered_hashes);
 				break;
 			case REQUEST_PRINT:
