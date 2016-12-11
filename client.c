@@ -307,18 +307,90 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 	return 0;
 }
 
+void
+put_file(vec_void_t* files, const char* filename)
+{
+	RegisteredFile* rf = malloc(sizeof(*rf));
+
+	strncpy(rf->filename, filename, PATH_MAX - 1);
+
+	rf->status = STATUS_PUT;
+
+	rf->timeout = 1;
+
+	rf->hash_data = hash_data_new(filename);
+
+	vec_push(files, rf);
+
+	srsly("registered for PUT > %s", filename);
+}
+
+void
+get_file(vec_void_t* files, const char* digest, const char* filename)
+{
+	RegisteredFile* rf = malloc(sizeof(*rf));
+
+	strncpy(rf->filename, filename, PATH_MAX - 1);
+
+	rf->status = STATUS_GET;
+
+	rf->timeout = 1;
+
+	rf->hash_data = malloc(sizeof(HashData));
+	rf->hash_data->filename = strdup(filename);
+
+	rf->hash_data->digest = malloc(32);
+	memset(rf->hash_data->digest, 0, 32);
+	for (int i = 0; i < 32; i++) {
+		if (digest[i] == '\0')
+			break;
+
+		unsigned int digit;
+
+		sscanf(filename + 2 * i, "%02x", &digit);
+
+		rf->hash_data->digest[i] = digit;
+	}
+
+	vec_init(&rf->hash_data->chunkDigests);
+
+	vec_init(&rf->related_clients);
+
+	vec_push(files, rf);
+
+	srsly("registered for GET > %s", filename);
+}
+
 int
 parse_arg(
 	int argc, const char* argv[],
-	const char** filename, uint16_t* port, uint16_t* listening_port,
+	uint16_t* port, uint16_t* listening_port,
 	const char** destination,
-	int* command
+	vec_void_t* registered_files
 )
 {
 	for (int i = 1; i < argc; i++) {
 		if (argv[i][0] == '-') {
 			if (argv[i][1] == '-') {
-				if (!strcmp(argv[i], "--port")) {
+				if (!strcmp(argv[i], "--put")) {
+					if ((i + 1) < argc) {
+						put_file(registered_files, argv[++i]);
+					} else {
+						orz("--put expects a file name");
+
+						return 1;
+					}
+				} else if (!strcmp(argv[i], "--get")) {
+					if ((i + 2) < argc) {
+						get_file(registered_files, argv[i+1], argv[i+2]);
+
+						i += 2;
+					} else {
+						orz("--get expects a hash and a file name");
+
+						return 1;
+					}
+				} else if (!strcmp(argv[i], "--port")) {
 					if ((i + 1) < argc) {
 						(*port) = atol(argv[i+1]);
 
@@ -391,118 +463,33 @@ parse_arg(
 				}
 			}
 		} else {
-			if (!(*command)) {
-				if (!strcmp(argv[i], "put")) {
-					(*command) = CMD_PUT;
-				} else if (!strcmp(argv[i], "get")) {
-					(*command) = CMD_GET;
-				} else if (!strcmp(argv[i], "print")) {
-					(*command) = CMD_PRINT;
-				} else if (!strcmp(argv[i], "debug")) {
-					(*command) = CMD_DEBUG;
-				} else {
-					orz("received unexpected (*command): %s", argv[i]);
-					return 1;
-				}
-			} else if (!(*filename)) {
-				(*filename) = argv[i];
-			} else {
-				orz("unexpected extra operand: %s", argv[i]);
-				return 1;
-			}
+			orz("unexpected extra operand: %s", argv[i]);
+			return 1;
 		}
 	}
 
 	return 0;
 }
 
-void
-put_file(vec_void_t* files, const char* filename)
-{
-	RegisteredFile* rf = malloc(sizeof(*rf));
-
-	strncpy(rf->filename, filename, PATH_MAX - 1);
-
-	rf->status = STATUS_PUT;
-
-	rf->timeout = 1;
-
-	rf->hash_data = hash_data_new(filename);
-
-	vec_push(files, rf);
-
-	srsly("registered for PUT > %s", filename);
-}
-
-void
-get_file(vec_void_t* files, const char* filename)
-{
-	RegisteredFile* rf = malloc(sizeof(*rf));
-
-	strncpy(rf->filename, filename, PATH_MAX - 1);
-
-	rf->status = STATUS_GET;
-
-	rf->timeout = 1;
-
-	rf->hash_data = malloc(sizeof(HashData));
-	rf->hash_data->filename = NULL;
-
-	rf->hash_data->digest = malloc(32);
-	memset(rf->hash_data->digest, 0, 32);
-	for (int i = 0; i < 32; i++) {
-		if (filename[i] == '\0')
-			break;
-
-		unsigned int digit;
-
-		sscanf(filename + 2 * i, "%02x", &digit);
-
-		rf->hash_data->digest[i] = digit;
-	}
-
-	vec_init(&rf->hash_data->chunkDigests);
-
-	vec_init(&rf->related_clients);
-
-	vec_push(files, rf);
-
-	srsly("registered for GET > %s", filename);
-}
-
 int
 main ( int argc, const char* argv[] )
 {
-	const char* filename = NULL;
 	uint16_t tracker_port = 9000;
 	uint16_t peers_port = 9001;
 	const char* destination = NULL;
-	int command = 0;
 
 	vec_void_t registered_files;
 
-	if (0 != parse_arg(argc, argv, &filename, &tracker_port, &peers_port, &destination, &command))
+	vec_init(&registered_files);
+
+	if (0 != parse_arg(argc, argv, &tracker_port, &peers_port, &destination, &registered_files))
 		return 1;
-
-	if (!command) {
-		orz("no command, use 'get', 'put', 'print', or RTFM");
-
-		return 1;
-	}
-
-	if ((command == CMD_PUT || command == CMD_GET) && !filename) {
-		orz("add a filename, please");
-
-		return 1;
-	}
 
 	if (!destination) {
 		orz("no destination set, use -h <addr>");
 
 		return 1;
 	}
-
-	vec_init(&registered_files);
 
 	struct net net;
 	struct net srv;
@@ -516,13 +503,6 @@ main ( int argc, const char* argv[] )
 		srv.current = (union s_addr *) &(net.addr.v4);
 	else
 		srv.current = (union s_addr *) &(net.addr.v6);
-
-	if (command == CMD_PUT) {
-		put_file(&registered_files, filename);
-	} else if (command == CMD_GET) {
-		/* filename here is a hash */
-		get_file(&registered_files, filename);
-	}
 
 	event_loop(&net, &srv, &registered_files);
 
