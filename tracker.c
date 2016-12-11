@@ -62,9 +62,10 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 		printf(" from %s\n", address);
 	}
 
-	int r =
-		check_segment_file_hash(&datagram->hash_segment) &&
-		check_segment_client(&datagram->client_segment);
+	int r = check_segment_file_hash(&datagram->hash_segment);
+
+	if (!keepalive)
+		r = r && check_segment_client(&datagram->client_segment);
 
 	if (!r) {
 		orz("Dropping PUT request.");
@@ -113,7 +114,7 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 
 			vec_push(registered_hashes, rh);
 
-			srsly("file registered");
+			srsly(" - new file registered -");
 
 			datagram->type = REQUEST_PUT_ACK;
 
@@ -122,8 +123,6 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 		}
 	} else {
 		if (keepalive) {
-			srsly("keeping file alive");
-
 			datagram->type = REQUEST_KEEP_ALIVE_ACK;
 
 			/* Almost the same request types. The first fields are the exact same. */
@@ -131,7 +130,7 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 		} else {
 			RequestEC* answer = buffer;
 
-			wtf("hash was put but already registered");
+			wtf("hash was PUT but already registered");
 
 			answer->type = REQUEST_EC;
 			answer->subtype = 0;
@@ -149,9 +148,10 @@ void
 handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 {
 	RequestGet* datagram = (void*) buffer;
-	char answer_buffer[CHUNK_SIZE + sizeof(RequestPutAck)];
+	char answer_buffer[CHUNK_SIZE + sizeof(RequestGetAck)];
 	RequestGetAck* answer = (void*) answer_buffer;
 	char* currentClient = (void*) answer->clients;
+	size_t datagram_size = sizeof(RequestGetAck);
 
 	int r =
 		check_segment_file_hash(&datagram->hash_segment) &&
@@ -171,16 +171,12 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 	RegisteredHash* rh;
 	char address[INET6_ADDRSTRLEN];
 
-	/* Chunk size should probably be enough. */
-	answer = malloc(sizeof(*answer) + CHUNK_SIZE);
-
 	vec_foreach (registered_hashes, rh, i) {
 		if (!memcmp(rh->hash, datagram->hash_segment.hash, sizeof(*rh->hash))) {
-			inet_ntop(rh->client.sa_family, &rh->client, address, sizeof(address));
+			struct sockaddr_in* saddr = (void*) &rh->client;
+			inet_ntop(rh->client.sa_family, &saddr->sin_addr, address, sizeof(address));
 
-			printf("  -> [");
-			print_hash(rh->hash);
-			puts("] ");
+			srsly("GET/ACK> %s", hash_data_schar(rh->hash));
 
 			if (rh->client.sa_family == AF_INET) {
 				SegmentClient4* client = (void*) currentClient;
@@ -192,10 +188,11 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 
 				memcpy(&client->address, &in->sin_addr, sizeof(client->address));
 
-				printf("IPv4 client: %s\n", address);
+				srsly("GET/ACK> - ipv4 - %s", address);
 
 				answer->count += 1;
 				currentClient += sizeof(SegmentClient4);
+				datagram_size += sizeof(SegmentClient4);
 			} else if (rh->client.sa_family == AF_INET6) {
 				SegmentClient6* client = (void*) currentClient;
 				struct sockaddr_in* in = (void*) &rh->client;
@@ -206,10 +203,11 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 
 				memcpy(&client->address, &in->sin_addr, sizeof(client->address));
 
-				printf("IPv6 client: %s\n", address);
+				srsly("GET/ACK> - ipv6 - %s", address);
 
 				answer->count += 1;
 				currentClient += sizeof(SegmentClient6);
+				datagram_size += sizeof(SegmentClient6);
 			} else {
 				orz("Unexpected protocol in registered client (%s, sa_family=%d)",
 					address, rh->client.sa_family);
@@ -217,7 +215,8 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 		}
 	}
 
-	net_write(net, answer, sizeof(*answer) + (((char*) answer->clients) - (char*) currentClient), 0);
+	wtf("GET/ACK> %d", datagram_size);
+	net_write(net, answer, datagram_size, 0);
 }
 
 void
@@ -308,19 +307,20 @@ main(int argc, const char** argv)
 
 		RequestType type = buffer[0];
 
-		printf("%d: ", count);
-
 		/* FIXME: For each case, assert() that count is more than the matching expected datagram size. */
 		switch (type) {
 			case REQUEST_PUT:
+				srsly("PUT <<");
 				handle_put(&net, buffer, &registered_hashes, 0);
 				break;
 			case REQUEST_KEEP_ALIVE:
+				srsly("KEEP_ALIVE <<");
 				handle_put(&net, buffer, &registered_hashes, 1);
 				break;
 			case REQUEST_GET:
-				printf("Client sent GET request…\n");
+				srsly("GET <<");
 				handle_get(&net, buffer, &registered_hashes);
+				break;
 			case REQUEST_PRINT:
 				if (1) {
 					int i;
@@ -360,7 +360,6 @@ main(int argc, const char** argv)
 				break;
 		}
 	}
-
 
 	/* FIXME: Data accessed by pointer needs to be freed. */
 	vec_deinit(&registered_hashes);

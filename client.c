@@ -18,6 +18,76 @@
 #define CMD_DEBUG 99
 
 int
+send_list ( struct net * net, const unsigned char * hash )
+{
+	if ( !hash ) return NET_FAIL;
+
+	unsigned char buffer[sizeof(RequestList)];
+	RequestList * rq = (void*) buffer;
+
+	rq->type = REQUEST_LIST;
+	
+	rq->hash.c    = 50;
+	rq->hash.size = 32;
+	memcpy(
+		rq->hash.hash,
+		hash,
+		32
+	);
+
+	return net_write(net, rq, sizeof(*rq), 32);
+}
+
+void
+handle_list ( char * buffer, HashData * hd )
+{
+	if ( !hd || hd->chunkDigests.length < 1 )
+	{
+		orz("No hash in HashData ...");
+		return;
+	}
+	RequestList * rq = (void*) buffer;
+
+	if ( rq->hash.c == 50 && rq->hash.size == 32 )
+	{
+		srsly("Someone is trying to get a file");
+
+		// comparaison file hash
+		for ( int i = 0 ; i < 32 ; i++ )
+		{
+			if ( hd->digest[i] != rq->hash.hash[i] )
+			{
+				/* TODO : RequestListError */
+				wtf("LIST ACK> A client try to get a file but ... We don't have it.");
+				//send_ec_str( net, "LIST ACK> A client try to get a file but ... We don't have it." );
+
+				return;
+			}
+		}
+
+		unsigned char buf[ 1000*10 ];
+		RequestListAck * rp = (void*) buf;
+		
+		rp->type = REQUEST_LIST_ACK;
+		rp->size = 0;
+
+/*
+typedef struct __attribute__((__packed__)) {
+	uint8_t  type;
+	uint16_t size;
+	SegmentFileHash  file_hash_segment;
+	SegmentChunkHash data[0];
+} RequestListAck;
+*/
+
+	}
+	else
+	{
+		orz("LIST ACK FAILED - constants");
+	}
+}
+
+int
 send_get_cli ( struct net* net, const HashData* hd, short index )
 {
 	if ( index >= hd->chunkDigests.length || index < 0 )
@@ -87,6 +157,44 @@ send_put(struct net* net, const HashData* hd)
 }
 
 
+int
+send_keep_alive(struct net* net, const HashData * hd)
+{
+	int err = 0;
+	char buffer[sizeof(RequestKeepAlive)];
+	RequestPut* rq = (void*) buffer;
+
+	rq->type = REQUEST_KEEP_ALIVE;
+
+	rq->hash_segment.c = 50;
+	rq->hash_segment.size = 32;
+	memcpy((void*) rq->hash_segment.hash, hd->digest, sizeof(rq->hash_segment.hash));
+
+	net_write(net, (void*) rq, sizeof(*rq), 0);
+
+	return err;
+}
+
+void
+send_get(struct net* tracker, struct net* server, const HashData* hd)
+{
+	RequestGet r;
+	struct sockaddr_in6* saddr = &server->addr.v6;
+
+	r.type = REQUEST_GET;
+
+	r.hash_segment.c = 50;
+	r.hash_segment.size = 32;
+	memcpy(&r.hash_segment.hash, hd->digest, 32);
+
+	r.client_segment.v4.c = 55;
+	r.client_segment.v4.ipv = server->version == 4 ? 6 : 18;
+	r.client_segment.v6.port = saddr->sin6_port;
+	memcpy(&r.client_segment.v6.address, (void*) &saddr->sin6_addr,
+		server->version == 4 ? 4 : 16);
+
+	net_write(tracker, (void*) &r, sizeof(r), 0);
+}
 
 const char*
 status_string(RegisteredFile* rf)
@@ -101,15 +209,15 @@ status_string(RegisteredFile* rf)
 	}
 }
 
+
+
 void
-handle_timeout(struct net* tracker, vec_void_t* registered_files)
+handle_timeout(struct net* tracker, struct net* server, vec_void_t* registered_files)
 {
 	int i;
 	RegisteredFile* rf;
 
 	vec_foreach(registered_files, rf, i) {
-		printf(" -> %s (%s) %i\n", rf->filename, status_string(rf), rf->timeout);
-
 		if (--rf->timeout == 0) {
 			switch (rf->status) {
 				case STATUS_PUT:
@@ -123,13 +231,16 @@ handle_timeout(struct net* tracker, vec_void_t* registered_files)
 					rf->timeout = 5;
 					break;
 				case STATUS_GET:
-					orz("should be sending new GET here");
+					srsly("GET> %s", hash_data_schar(rf->hash_data->digest));
+					send_get(tracker, server, rf->hash_data);
 					rf->timeout = 5;
 					break;
+
 			}
 		} else if (rf->status == STATUS_KEEP_ALIVE) {
 			if (rf->timeout <= 30 && rf->timeout % 5 == 0) {
-				orz("should be sending new KEEP_ALIVE here");
+				srsly("KEEP-ALIVE> %s", hash_data_schar(rf->hash_data->digest));
+				send_keep_alive(tracker, rf->hash_data);
 			}
 		}
 	}
@@ -143,8 +254,7 @@ handle_ec(char* buffer, int size)
 	if ((unsigned) size < sizeof(*r) || (unsigned) size < sizeof(*r) + r->size) {
 		orz("received broken EC, datagram was too short");
 
-		return;
-			
+		return;	
 	}
 
 	if (r->subtype == 0) {
@@ -179,6 +289,86 @@ handle_put_ack(char* buffer, int size, vec_void_t* registered_files)
 	}
 }
 
+void
+handle_keep_alive_ack(char* buffer, int size, vec_void_t* registered_files)
+{
+	RequestKeepAliveAck* r = (void*) buffer;
+	int i;
+	RegisteredFile* rf;
+
+	if ((unsigned) size < sizeof(*r)) {
+		orz("received broken PUT/ACK, datagram too short");
+
+		return;
+	}
+
+	vec_foreach (registered_files, rf, i) {
+		if (!memcmp(rf->hash_data->digest, r->hash_segment.hash, 32)) {
+			rf->timeout = 60;
+			rf->status = STATUS_KEEP_ALIVE;
+
+			return;
+		}
+	}
+}
+
+void
+handle_get_ack(char* buffer, int count, vec_void_t* registered_files)
+{
+	RequestGetAck* r = (void*) buffer;
+	int i;
+	RegisteredFile* rf;
+
+	if ((unsigned) count < sizeof(*r)) {
+		orz("received broken GET/ACK, datagram too short");
+
+		return;
+	}
+
+	count -= sizeof(*r);
+
+	vec_foreach (registered_files, rf, i) {
+		if (!memcmp(rf->hash_data->digest, r->hash_segment.hash, 32)) {
+			char* current_offset;
+			int j;
+			SegmentClient* s;
+
+			vec_foreach_rev (&rf->related_clients, s, j) {
+				free(s);
+
+				vec_pop(&rf->related_clients);
+			}
+
+			current_offset = (char*) r->clients;
+
+			for (; r->count > 0; r->count--) {
+				s = (SegmentClient*) current_offset;
+
+				size_t segment_size =
+					s->v4.ipv == 6 ? sizeof(SegmentClient4) : sizeof(SegmentClient6);
+
+				current_offset += segment_size;
+				count -= segment_size;
+
+				if (count <= 0)
+					break;
+
+				void* clone = malloc(segment_size);
+
+				memcpy(clone, current_offset, segment_size);
+
+				vec_push(&rf->related_clients, clone);
+			}
+
+			rf->timeout = 30;
+
+			srsly("GET/ACK << %s", hash_data_schar(r->hash_segment.hash));
+
+			return;
+		}
+	}
+}
+
 int
 event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 {
@@ -201,7 +391,9 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 			orz("something bad happened");
 			net_error(count);
 		} else if (count == 0) { /* timeout */
-			handle_timeout(net, registered_files);
+			handle_timeout(net, srv, registered_files);
+
+			t.tv_sec = 1;
 		} else {
 			RequestType type = buffer[0];
 
@@ -212,11 +404,14 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 				case REQUEST_PUT_ACK:
 					handle_put_ack(buffer, count, registered_files);
 					break;
+				case REQUEST_KEEP_ALIVE_ACK:
+					handle_keep_alive_ack(buffer, count, registered_files);
+					break;
+				case REQUEST_GET_ACK:
+					handle_get_ack(buffer, count, registered_files);
+					break;
 			}
 		}
-		printf("%d\n", count);
-
-		t.tv_sec = 1;
 	}
 
 	return 0;
@@ -225,7 +420,8 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 int
 parse_arg(
 	int argc, const char* argv[],
-	const char** filename, uint16_t* port, const char** destination,
+	const char** filename, uint16_t* port, uint16_t* listening_port,
+	const char** destination,
 	int* command
 )
 {
@@ -239,6 +435,16 @@ parse_arg(
 						i++;
 					} else {
 						orz("--port expects a port number");
+
+						return 1;
+					}
+				} else if (!strcmp(argv[i], "--listening-port")) {
+					if ((i + 1) < argc) {
+						(*listening_port) = atol(argv[i+1]);
+
+						i++;
+					} else {
+						orz("--listening-port expects a port number");
 
 						return 1;
 					}
@@ -264,6 +470,18 @@ parse_arg(
 							break;
 						} else {
 							orz("-p expects a port number");
+
+							return 1;
+						}
+					} else if (argv[i][j] == 'l') {
+						if (argv[i][j + 1] == '\0' && (i + 1) < argc) {
+							(*listening_port) = atol(argv[i+1]);
+
+							i++;
+
+							break;
+						} else {
+							orz("-l expects a port number");
 
 							return 1;
 						}
@@ -333,17 +551,29 @@ get_file(vec_void_t* files, const char* filename)
 
 	strncpy(rf->filename, filename, PATH_MAX - 1);
 
-	rf->status = STATUS_PUT;
+	rf->status = STATUS_GET;
 
 	rf->timeout = 1;
 
 	rf->hash_data = malloc(sizeof(HashData));
 	rf->hash_data->filename = NULL;
 
-	/* FIXME: this needs to be assigned a real hash */
+	rf->hash_data->digest = malloc(32);
 	memset(rf->hash_data->digest, 0, 32);
+	for (int i = 0; i < 32; i++) {
+		if (filename[i] == '\0')
+			break;
+
+		unsigned int digit;
+
+		sscanf(filename + 2 * i, "%02x", &digit);
+
+		rf->hash_data->digest[i] = digit;
+	}
 
 	vec_init(&rf->hash_data->chunkDigests);
+
+	vec_init(&rf->related_clients);
 
 	vec_push(files, rf);
 
@@ -361,7 +591,7 @@ main ( int argc, const char* argv[] )
 
 	vec_void_t registered_files;
 
-	if (0 != parse_arg(argc, argv, &filename, &tracker_port, &destination, &command))
+	if (0 != parse_arg(argc, argv, &filename, &tracker_port, &peers_port, &destination, &command))
 		return 1;
 
 	if (!command) {
