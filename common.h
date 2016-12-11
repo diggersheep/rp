@@ -118,5 +118,7 @@ typedef struct __attribute__((__packed__)) {
 	uint8_t  data[0];  /* variable-length raw data. */
 } RequestEC; /* Errors and Control */
 
+#define REQUEST_EC_TIMEOUT 1
+
 #endif
 
