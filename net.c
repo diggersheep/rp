@@ -1,6 +1,7 @@
 #include "net.h"
 #include "vec/vec.h"
 
+#include "debug.h"
 
 //print errors and exit
 void
@@ -66,7 +67,6 @@ net_init   ( struct net * restrict net, const short port, const char * restrict 
 		err = inet_pton( AF_INET , ip, &(net->addr.v4.sin_addr));
 	}
 
-
 	// err if @ip can't be copying
 	if ( err != 1 )
 		return NET_ERR_INIT_ADDR;
@@ -81,7 +81,6 @@ net_init   ( struct net * restrict net, const short port, const char * restrict 
 
 	if ( net->fd == -1 )
 		return NET_ERR_INIT_SOCK;
-
 
 	// bind if it's a server
 	if ( mode == NET_SERVER )
@@ -107,7 +106,6 @@ net_client ( struct net * net, const short port, const char * ip6, int version )
 {
 	return net_init(net, port, ip6, NET_CLIENT, version );
 }
-
 
 int
 net_server ( struct net * net, const short port, const char * ip6, int version )
@@ -153,7 +151,7 @@ void net_set_timeout ( struct net * net, struct timeval * t )
 }
 
 // recvfrom with net structure
-ssize_t
+int
 net_read ( struct net * net, void * buf, size_t len, int flags )
 {
 	//some check
@@ -161,7 +159,7 @@ net_read ( struct net * net, void * buf, size_t len, int flags )
 	if ( net->mode != NET_SERVER && net->mode != NET_CLIENT ) return NET_FAIL;
 	if ( net->version != NET_IPV6 && net->version != NET_IPV4 ) return NET_FAIL;
 
-	ssize_t ret = 1;
+	int ret = -1;
 	char addr_buf[32];
 	
 	for ( int i = 0 ; i < 32 ; i++ )
@@ -182,25 +180,109 @@ net_read ( struct net * net, void * buf, size_t len, int flags )
 	}
 	else if ( ret_select == 0 )
 	{
-		printf("  Warning - select timeout.\n");
+		wtf("Warning - select timeout.\n");
+		return 0;
+
+		if ( FD_ISSET( net->fd, &fd_read ) )
+		{
+			ret = recvfrom( net->fd, buf, len, flags, (struct sockaddr *)addr_buf, &net->current_len );
+		}
+
+		if ( net->current_len == sizeof(struct sockaddr_in6) ||  net->current_len == sizeof(struct sockaddr_in))
+		{
+			if (net->current)
+				free(net->current);
+			net->current = malloc( net->current_len );
+			memcpy( net->current, addr_buf, net->current_len );
+		}
+		else
+		{
+			return 0;  
+		}
+	}
+
+	return ret;
+}
+
+
+/*
+ *		net_read2()
+ *		timeout is the value of net1->timeout ( i.e. net2->timeout is ignored)
+ */
+int
+net_read2 ( struct net * net1, struct net * net2, void * buf, size_t len, int flags )
+{
+	if ( !net1 || !net2 ) return NET_FAIL;
+
+	if ( net1->mode != NET_SERVER && net1->mode != NET_CLIENT ) return NET_FAIL;
+	if ( net2->mode != NET_SERVER && net2->mode != NET_CLIENT ) return NET_FAIL;
+	if ( net1->version != NET_IPV6 && net1->version != NET_IPV4 ) return NET_FAIL;
+	if ( net2->version != NET_IPV6 && net2->version != NET_IPV4 ) return NET_FAIL;
+
+	int ret = 1;
+	int max = 0;
+
+	unsigned char addr_buf[32];
+
+
+	fd_set fd_read;
+	FD_ZERO( &fd_read );
+	FD_SET(  net1->fd, &fd_read );
+	FD_SET(  net2->fd, &fd_read );
+
+	net1->current_len = 32;
+	net2->current_len = 32;
+
+	//max fd for select
+	max = ( net1->fd > net2->fd ) ? net2->fd : net1->fd;
+
+	int ret_select = select( max + 1, &fd_read, NULL, NULL, net1->timeout );
+	if ( ret_select == 0 )
+	{
+		wtf("Warning - select timeout.\n");
 		return 0;
 	}
-
-	ret = recvfrom( net->fd, buf, len, flags, (struct sockaddr *)addr_buf, &net->current_len );
-
-	if ( net->current_len == sizeof(struct sockaddr_in6) ||  net->current_len == sizeof(struct sockaddr_in))
+	else if ( ret_select == -1 )
 	{
-		if (net->current)
-			free(net->current);
-		net->current = malloc( net->current_len );
-		memcpy( net->current, addr_buf, net->current_len );
-	}
-	else
-	{
-		return 0;  
+		orz("Error - select");
+		return -1;
 	}
 
 
+	if ( FD_ISSET( net1->fd, &fd_read ) )
+	{
+		ret = recvfrom( net1->fd, buf, len, flags, (struct sockaddr *)addr_buf, &net1->current_len );
+		
+		if ( net1->current_len == sizeof(struct sockaddr_in6) ||  net1->current_len == sizeof(struct sockaddr_in))
+		{
+			if (net1->current)
+				free(net1->current);
+			net1->current = malloc( net1->current_len );
+			memcpy( net1->current, addr_buf, net1->current_len );
+			return ret;
+		}
+		else
+		{
+			return 0;
+		}
+	}
+	if ( FD_ISSET( net2->fd, &fd_read ) )
+	{
+		ret = recvfrom( net2->fd, buf, len, flags, (struct sockaddr *)addr_buf, &net2->current_len );
+			
+		if ( net2->current_len == sizeof(struct sockaddr_in6) ||  net2->current_len == sizeof(struct sockaddr_in))
+		{
+			if (net2->current)
+				free(net2->current);
+			net2->current = malloc( net2->current_len );
+			memcpy( net2->current, addr_buf, net2->current_len );
+			return ret;
+		}
+		else
+		{
+			return 0;  
+		}
+	}
 
 	return ret;
 }

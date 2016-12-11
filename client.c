@@ -137,7 +137,7 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 	{
 		int count;
 
-		count = net_read(net, buffer, sizeof(buffer), 0);
+		count = net_read2(net, srv, buffer, sizeof(buffer), 0);
 
 		if (count < 0) {
 			orz("something bad happened");
@@ -159,9 +159,6 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 
 		t.tv_sec = 1;
 	}
-	printf("\n");
-
-	printf("is over?\n");
 
 	return 0;
 }
