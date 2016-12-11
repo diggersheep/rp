@@ -396,6 +396,9 @@ handle_get_ack(char* buffer, int count, vec_void_t* registered_files)
 
 	count -= sizeof(*r);
 
+	srsly("GET/ACK <<");
+	srsly(" - hash: %s - ", hash_data_schar(r->hash_segment.hash));
+
 	vec_foreach (registered_files, rf, i) {
 		if (!memcmp(rf->hash_data->digest, r->hash_segment.hash, 32)) {
 			char* current_offset;
@@ -419,19 +422,28 @@ handle_get_ack(char* buffer, int count, vec_void_t* registered_files)
 				current_offset += segment_size;
 				count -= segment_size;
 
-				if (count <= 0)
+				if (count < 0) {
+					orz("broken GET/ACK received and partly handled");
+
 					break;
+				}
 
 				void* clone = malloc(segment_size);
 
 				memcpy(clone, current_offset, segment_size);
 
 				vec_push(&rf->related_clients, clone);
+
+				char address[64];
+				inet_ntop(
+					s->v4.ipv == 6 ? AF_INET : AF_INET6,
+					(void*) &s->v4.address, address, sizeof(address)
+				);
+
+				srsly(" - new pair: %s:%d - ", address, ntohs(s->v4.port));
 			}
 
 			rf->timeout = 30;
-
-			srsly("GET/ACK << %s", hash_data_schar(r->hash_segment.hash));
 
 			return;
 		}
@@ -743,7 +755,7 @@ main ( int argc, const char* argv[] )
 	for (int i = 0; i < registered_files.length; i++) {
 		RegisteredFile* rf = registered_files.data[i];
 
-		hash_data_free(rf);
+		hash_data_free(rf->hash_data);
 
 		for (int j = 0; j < rf->related_clients.length; j++)
 			free(rf->related_clients.data[j]);
