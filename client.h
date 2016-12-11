@@ -16,6 +16,7 @@ typedef struct {
 		STATUS_GET
 	} status;
 	int timeout;
+	vec_void_t related_clients;
 } RegisteredFile;
 
 #endif
