@@ -36,7 +36,113 @@ send_ec_str(struct net* net, const char* str)
 }
 
 int
-send_put(struct net* net, const HashData * hd)
+send_list ( struct net * net, const unsigned char * hash )
+{
+	if ( !hash ) return NET_FAIL;
+
+	unsigned char buffer[sizeof(RequestList)];
+	RequestList * rq = (void*) buffer;
+
+	rq->type = REQUEST_LIST;
+	
+	rq->hash.c    = 50;
+	rq->hash.size = 32;
+	memcpy(
+		rq->hash.hash,
+		hash,
+		32
+	);
+
+	return net_write(net, rq, sizeof(*rq), 32);
+}
+
+void
+handle_list ( char * buffer, HashData * hd )
+{
+	if ( !hd || hd->chunkDigests.length < 1 )
+	{
+		orz("No hash in HashData ...");
+		return;
+	}
+	RequestList * rq = (void*) buffer;
+
+	if ( rq->hash.c == 50 && rq->hash.size == 32 )
+	{
+		srsly("Someone is trying to get a file");
+
+		// comparaison file hash
+		for ( int i = 0 ; i < 32 ; i++ )
+		{
+			if ( hd->digest[i] != rq->hash.hash[i] )
+			{
+				/* TODO : RequestListError */
+				wtf("LIST ACK> A client try to get a file but ... We don't have it.");
+				//send_ec_str( net, "LIST ACK> A client try to get a file but ... We don't have it." );
+
+				return;
+			}
+		}
+
+		unsigned char buf[ 1000*10 ];
+		RequestListAck * rp = (void*) buf;
+		
+		rp->type = REQUEST_LIST_ACK;
+		rp->size = 0;
+
+/*
+typedef struct __attribute__((__packed__)) {
+	uint8_t  type;
+	uint16_t size;
+	SegmentFileHash  file_hash_segment;
+	SegmentChunkHash data[0];
+} RequestListAck;
+*/
+
+	}
+	else
+	{
+		orz("LIST ACK FAILED - constants");
+	}
+}
+
+int
+send_get_cli ( struct net* net, const HashData* hd, short index )
+{
+	if ( index >= hd->chunkDigests.length || index < 0 )
+		return -1;
+
+	int err = 0;
+
+	char buffer[sizeof(RequestGetCli)];
+	RequestGetCli * rq = (void*) buffer;
+
+	rq->type   = 100;
+
+	//hash file
+	rq->file_hash_segment.c    = 50;
+	rq->file_hash_segment.size = 32;
+	memcpy(
+		rq->file_hash_segment.hash,
+		hd->digest,
+		32
+	);
+
+	//chunk hash
+	rq->chunk_hash_segment.c     = 51;
+	rq->chunk_hash_segment.index = index; 
+	memcpy(
+		rq->chunk_hash_segment.hash,
+		hd->chunkDigests.data[index],
+		32
+	);
+
+	net_write(net, (void*)rq, sizeof(*rq), 0);
+
+	return err;
+}
+
+int
+send_put(struct net* net, const HashData* hd)
 {
 	int err = 0;
 	char buffer[sizeof(RequestPut)];
@@ -49,7 +155,7 @@ send_put(struct net* net, const HashData * hd)
 	memcpy((void*) rq->hash_segment.hash, hd->digest, sizeof(rq->hash_segment.hash));
 
 	rq->client_segment.v4.c = 55;
-	if (net->version == 4)
+	if (net->version == NET_IPV4)
 		rq->client_segment.v4.ipv = 6;
 	else
 		rq->client_segment.v4.ipv = 18;
@@ -67,6 +173,7 @@ send_put(struct net* net, const HashData * hd)
 
 	return err;
 }
+
 
 int
 send_keep_alive(struct net* net, const HashData * hd)
@@ -120,6 +227,8 @@ status_string(RegisteredFile* rf)
 	}
 }
 
+
+
 void
 handle_timeout(struct net* tracker, struct net* server, vec_void_t* registered_files)
 {
@@ -145,6 +254,7 @@ handle_timeout(struct net* tracker, struct net* server, vec_void_t* registered_f
 					send_get(tracker, server, rf->hash_data);
 					rf->timeout = 5;
 					break;
+
 			}
 		} else if (rf->status == STATUS_KEEP_ALIVE) {
 			if (rf->timeout <= 30 && rf->timeout % 5 == 0) {

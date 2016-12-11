@@ -56,7 +56,6 @@ struct net
 	int mode;
 	int version; //NET_IPV4 or NET_IPV6  i.e. 4 or 6
 
-
 	vec_void_t   data;
 
 	//addresses structure

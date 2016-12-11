@@ -14,6 +14,16 @@ typedef struct {
 	vec_void_t chunkDigests;
 } HashData;
 
+
+typedef struct __attribute__((__packed__)) {
+	uint8_t  c;    /* must be 60 */
+	uint16_t size; /* 4 -> 1004 */
+	uint16_t index;     /* fragment index */
+	uint16_t max_index; /* max fragment index */
+	uint8_t  data[0];   /* variable-length raw data. */
+} SemgentChunkFragment;
+
+
 typedef struct __attribute__((__packed__)) {
 	uint8_t  c;    /* arbitrary constant */
 	uint16_t ipv;  /* version of IP address */
@@ -47,6 +57,8 @@ typedef struct __attribute__((__packed__)) {
 } SegmentChunkHash;
 
 typedef enum {
+	REQUEST_GET_CLIENT = 100,
+	REQUEST_GET_CLIENT_ACK = 101,
 	REQUEST_LIST = 102,
 	REQUEST_LIST_ACK = 103,
 
@@ -67,14 +79,14 @@ typedef enum {
 
 typedef struct __attribute__((__packed__)) {
 	uint8_t type;
-	unsigned file_hash[32];
+	SegmentFileHash hash;
 } RequestList;
 
 typedef struct __attribute__((__packed__)) {
-	uint8_t type;
-	uint8_t file_hash[32];
-	uint16_t chunks_count;
-	uint8_t chunk_hashes[32][0];
+	uint8_t  type;
+	uint16_t size;
+	SegmentFileHash  file_hash_segment;
+	SegmentChunkHash data[0];
 } RequestListAck;
 
 typedef struct __attribute__((__packed__)) {
@@ -124,6 +136,24 @@ typedef struct __attribute__((__packed__)) {
 	uint16_t size;     /* size of raw data */
 	uint8_t  data[0];  /* variable-length raw data. */
 } RequestEC; /* Errors and Control */
+
+
+typedef struct __attribute__((__packed__)) {
+	uint8_t  type; /* must be 100 */
+	uint16_t size; /* file hash and chunk hash size */
+	SegmentFileHash  file_hash_segment;
+	SegmentChunkHash chunk_hash_segment;
+} RequestGetCli;
+
+typedef struct __attribute__((__packed__)) {
+	uint8_t  type; /* must be 101 */
+	uint16_t size; /* file hash and chunk hash size */
+	SegmentFileHash      file_hash_segment;
+	SegmentChunkHash     chunk_hash_segment;
+	SemgentChunkFragment fragment;
+} RequestGetRepCli;
+
+
 
 #define REQUEST_EC_TIMEOUT 1
 
