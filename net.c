@@ -182,24 +182,24 @@ net_read ( struct net * net, void * buf, size_t len, int flags )
 	{
 		wtf("Warning - select timeout.\n");
 		return 0;
-
-		if ( FD_ISSET( net->fd, &fd_read ) )
-		{
-			ret = recvfrom( net->fd, buf, len, flags, (struct sockaddr *)addr_buf, &net->current_len );
-		}
-
-		if ( net->current_len == sizeof(struct sockaddr_in6) ||  net->current_len == sizeof(struct sockaddr_in))
-		{
-			if (net->current)
-				free(net->current);
-			net->current = malloc( net->current_len );
-			memcpy( net->current, addr_buf, net->current_len );
-		}
-		else
-		{
-			return 0;  
-		}
 	}
+
+	if ( FD_ISSET( net->fd, &fd_read ) )
+	{
+		ret = recvfrom( net->fd, buf, len, flags, (struct sockaddr *)addr_buf, &net->current_len );
+	}
+	if ( net->current_len == sizeof(struct sockaddr_in6) ||  net->current_len == sizeof(struct sockaddr_in))
+	{
+		if (net->current)
+			free(net->current);
+		net->current = malloc( net->current_len );
+		memcpy( net->current, addr_buf, net->current_len );
+	}
+	else
+	{
+		return 0;  
+	}
+
 
 	return ret;
 }
