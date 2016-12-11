@@ -82,6 +82,8 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 		if (sameHash && sameHost) {
 			hashExists = 1;
 
+			rh->time_to_live = 60;
+
 			break;
 		}
 	}
