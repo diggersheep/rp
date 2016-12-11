@@ -258,8 +258,7 @@ handle_timeout(vec_void_t* registered_hashes)
 			vec_pop(registered_hashes);
 
 			wtf("hash expired");
-		} else
-			wtf("[ttl=%d]", rh->time_to_live);
+		}
 	}
 }
 
