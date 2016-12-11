@@ -14,6 +14,17 @@ print_hash(unsigned char buffer[32])
 		printf("%02x", buffer[i]);
 }
 
+static char static_hash_string[33];
+char*
+hash_data_schar(const unsigned char* buffer)
+{
+	for (int i = 0; i < 32; i++)
+		sprintf(static_hash_string + i, "%02x", buffer[i]);
+	static_hash_string[32] = '\0';
+
+	return static_hash_string;
+}
+
 HashData*
 hash_data_new(const char* filename)
 {

@@ -74,12 +74,10 @@ handle_timeout(struct net* tracker, vec_void_t* registered_files)
 		printf(" -> %s (%s) %i\n", rf->filename, status_string(rf), rf->timeout);
 
 		if (--rf->timeout == 0) {
-			printf("Something timeout’d.\n");
-
 			switch (rf->status) {
 				case STATUS_PUT:
+					srsly("PUT> %s", hash_data_schar(rf->hash_data->digest));
 					send_put(tracker, rf->hash_data);
-					orz("should be sending new PUT here");
 					rf->timeout = 5;
 					break;
 				case STATUS_KEEP_ALIVE:
@@ -121,6 +119,29 @@ handle_ec(char* buffer, int size)
 	}
 }
 
+void
+handle_put_ack(char* buffer, int size, vec_void_t* registered_files)
+{
+	RequestPutAck* r = (void*) buffer;
+	int i;
+	RegisteredFile* rf;
+
+	if ((unsigned) size < sizeof(*r)) {
+		orz("received broken PUT/ACK, datagram too short");
+
+		return;
+	}
+
+	vec_foreach (registered_files, rf, i) {
+		if (!memcmp(rf->hash_data->digest, r->hash_segment.hash, 32)) {
+			rf->timeout = 60;
+			rf->status = STATUS_KEEP_ALIVE;
+
+			return;
+		}
+	}
+}
+
 int
 event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 {
@@ -152,6 +173,7 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 					handle_ec(buffer, count);
 					break;
 				case REQUEST_PUT_ACK:
+					handle_put_ack(buffer, count, registered_files);
 					break;
 			}
 		}
