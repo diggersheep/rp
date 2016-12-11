@@ -14,9 +14,6 @@
 
 int recv_put_ack ()//( struct net * net, RequestPutAck * datagram )
 {
-	
-
-
 	return 0;
 }
 
@@ -82,8 +79,6 @@ int send_put ( struct net * net, struct net * srv, const char * hash, int type )
 				fflush(stdout);
 			}			
 		}
-
-
 
 		if ( FD_ISSET( srv->fd, &rr ) )
 		{
@@ -190,32 +185,29 @@ int send_put ( struct net * net, struct net * srv, const char * hash, int type )
 
 
 
-
-
 int
-main ( int argc, const char* argv[] )
+parse_arg(
+	int argc, const char* argv[],
+	const char** filename, uint16_t* port, const char** destination,
+	int* command
+)
 {
-	const char* filename = NULL;
-	uint16_t port = 9000;
-	const char* destination = NULL;
-	int command = 0;
-
 	for (int i = 1; i < argc; i++) {
 		if (argv[i][0] == '-') {
 			if (argv[i][1] == '-') {
-				if (!strcmp(argv[i], "--port")) {
+				if (!strcmp(argv[i], "--(*port)")) {
 					if ((i + 1) < argc) {
-						port = atol(argv[i+1]);
+						(*port) = atol(argv[i+1]);
 
 						i++;
 					} else {
-						orz("--port expects a port number");
+						orz("--(*port) expects a (*port) number");
 
 						return 1;
 					}
 				} else if (!strcmp(argv[i], "--host")) {
 					if ((i + 1) < argc) {
-						destination = argv[i+1];
+						(*destination) = argv[i+1];
 
 						i++;
 					} else {
@@ -228,19 +220,19 @@ main ( int argc, const char* argv[] )
 				for (int j = 1; argv[i][j]; j++) {
 					if (argv[i][j] == 'p') {
 						if (argv[i][j + 1] == '\0' && (i + 1) < argc) {
-							port = atol(argv[i+1]);
+							(*port) = atol(argv[i+1]);
 
 							i++;
 
 							break;
 						} else {
-							orz("-p expects a port number");
+							orz("-p expects a (*port) number");
 
 							return 1;
 						}
 					} else if (argv[i][j] == 'h') {
 						if (argv[i][j + 1] == '\0' && (i + 1) < argc) {
-							destination = argv[i+1];
+							(*destination) = argv[i+1];
 
 							i++;
 
@@ -254,27 +246,41 @@ main ( int argc, const char* argv[] )
 				}
 			}
 		} else {
-			if (!command) {
+			if (!(*command)) {
 				if (!strcmp(argv[i], "put")) {
-					command = CMD_PUT;
+					(*command) = CMD_PUT;
 				} else if (!strcmp(argv[i], "get")) {
-					command = CMD_GET;
+					(*command) = CMD_GET;
 				} else if (!strcmp(argv[i], "print")) {
-					command = CMD_PRINT;
+					(*command) = CMD_PRINT;
 				} else if (!strcmp(argv[i], "debug")) {
-					command = CMD_DEBUG;
+					(*command) = CMD_DEBUG;
 				} else {
-					orz("received unexpected command: %s", argv[i]);
+					orz("received unexpected (*command): %s", argv[i]);
 					return 1;
 				}
-			} else if (!filename) {
-				filename = argv[i];
+			} else if (!(*filename)) {
+				(*filename) = argv[i];
 			} else {
 				orz("unexpected extra operand: %s", argv[i]);
 				return 1;
 			}
 		}
 	}
+
+	return 0;
+}
+
+int
+main ( int argc, const char* argv[] )
+{
+	const char* filename = NULL;
+	uint16_t port = 9000;
+	const char* destination = NULL;
+	int command = 0;
+
+	if (0 != parse_arg(argc, argv, &filename, &port, &destination, &command))
+		return 1;
 
 	if (!command) {
 		orz("no command, use 'get', 'put', 'print', or RTFM");
