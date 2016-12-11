@@ -18,6 +18,24 @@
 #define CMD_DEBUG 99
 
 int
+send_ec_str(struct net* net, const char* str)
+{
+	char buffer[1024];
+	RequestEC* r = (void*) buffer;
+
+	r->type = REQUEST_EC;
+	r->subtype = 0;
+
+	int len = snprintf((void*) r->data, 1024 - sizeof(*r), "%s", str);
+
+	r->size = len;
+
+	net_write(net, r, sizeof(*r) + r->size, 0);
+
+	return 0;
+}
+
+int
 send_put(struct net* net, const HashData * hd)
 {
 	int err = 0;
