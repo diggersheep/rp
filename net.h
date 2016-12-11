@@ -74,6 +74,7 @@ struct net
 void net_error ( int err );
 
 //init
+int net_init_raw ( struct net * restrict net, const short port, const char * restrict ip, int mode, int version );
 int net_init   ( struct net * restrict net, const short port, const char * restrict ip, int mode, int version );
 //lazy init
 int net_client ( struct net * restrict net, const short port, const char * restrict ip, int version );
