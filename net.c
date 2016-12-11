@@ -100,6 +100,88 @@ net_init   ( struct net * restrict net, const short port, const char * restrict 
 }
 
 
+
+
+int
+net_init_raw ( struct net * restrict net, const short port, const char * restrict ip, int mode, int version )
+{
+	int err = 0; // error return
+
+	// check mode
+	if ( mode != NET_SERVER && mode != NET_CLIENT)
+		return NET_ERR_INIT_MODE;
+
+	//init struct
+	net->addr_len   = sizeof(net->addr);
+	net->mode       = mode;
+	net->fd         = -1;
+	net->version    = version;
+
+
+	net->current_len = 0;
+	net->current     = NULL;
+	net->timeout     = NULL;
+	
+	//set in memory sockaddr_in6 + init sockaddr_in6
+	if (version == NET_IPV6 )
+	{
+		net->addr_len = sizeof(struct sockaddr_in6);
+		memset( (char*)&(net->addr), 0, sizeof(net->addr));
+		net->addr.v6.sin6_family = AF_INET6;
+		net->addr.v6.sin6_port   = port;
+		
+		memcpy(
+			&(net->addr.v6.sin6_addr),
+			ip,
+			sizeof(net->addr.v6.sin6_addr)
+		);
+	}
+	else // set in memory sockaddr_in + init socckaddr_in
+	{
+		net->addr_len    = sizeof(struct sockaddr_in);
+		memset( (char*)&(net->addr), 0, sizeof(net->addr));
+		net->addr.v4.sin_family = AF_INET;
+		net->addr.v4.sin_port   = port;
+		memcpy(
+			&(net->addr.v4.sin_addr),
+			ip,
+			sizeof(net->addr.v4.sin_addr)
+		);
+	}
+
+	// err if @ip can't be copying
+	if ( err != 1 )
+		return NET_ERR_INIT_ADDR;
+	printf("Init on address %s and %d port.\n", ip, port);
+
+
+	//init socket UDP - ipV6
+	if (version == NET_IPV6)
+		net->fd = socket(AF_INET6, SOCK_DGRAM, 0);
+	else
+		net->fd = socket(AF_INET , SOCK_DGRAM, 0);
+
+	if ( net->fd == -1 )
+		return NET_ERR_INIT_SOCK;
+
+	// bind if it's a server
+	if ( mode == NET_SERVER )
+	{
+		err = bind(
+			net->fd,
+			(struct sockaddr *) &(net->addr),
+			net->addr_len
+		);
+
+		if ( err < 0 )
+			return NET_ERR_INIT_BIND;
+		vec_init( &(net->data) );
+	}
+
+	return NET_OK;
+}
+
+
 // Lazy init for server and client
 int
 net_client ( struct net * net, const short port, const char * ip6, int version )

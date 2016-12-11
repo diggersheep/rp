@@ -165,7 +165,7 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 	int i;
 	RegisteredHash* rh;
 	char address[INET6_ADDRSTRLEN];
-
+	
 	vec_foreach (registered_hashes, rh, i) {
 		if (!memcmp(rh->hash, datagram->hash_segment.hash, sizeof(*rh->hash))) {
 			struct sockaddr_in* saddr = (void*) &rh->client;

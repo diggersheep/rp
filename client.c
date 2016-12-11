@@ -43,19 +43,21 @@ send_list ( const unsigned char * hash, RegisteredFile * rf )
 	if ( !hash ) return NET_FAIL;
 
 	int ret = 0;
-	unsigned char ip[64];
-	short port;
 
 	SegmentClient * client;
 
-	if ( rf->related_clients.length == 1 )
+	if ( rf->related_clients.length < 1 )
 	{
-		client = rf->related_clients.data[0];
+		orz("No clients for \"%s\"", hash_data_schar(hash));
+		return -1;
 	}
-	else
-	{
-		client = rf->related_clients.data[ rand() % rf->related_clients.length ];
-	}
+	srsly( "nombre de clients : %d", rf->related_clients.length );
+
+	client = rf->related_clients.data[ rand() % rf->related_clients.length ];
+
+//	client->v4.port = htons(9001);
+	srsly( "port %d", ntohs(client->v4.port)	 );
+
 
 	char buf[sizeof(struct net)];
 	struct net * peer = (void*) buf;
@@ -77,28 +79,19 @@ send_list ( const unsigned char * hash, RegisteredFile * rf )
 		32
 	);
 
-	
-	
-	/*
-	inet_ntop(
-		client->v4.ipv == 6 ? AF_INET : AF_INET6,
-		(void*)client->v4.address,
-		ip,
-		64
-	);*/
-/*
 
-	net_client(
+
+
+	net_init_raw(
 		peer,
-		port,
-		ip, 
-		client->v4.ipv == 6 ? NET_IPV4 : NET_IPV6
+		client->v4.port,
+		(void*)&client->v4.address,
+		NET_CLIENT,
+		(client->v4.ipv == 6) ? NET_IPV4 : NET_IPV6
 	);
 
-	printf("  >> IP %s PORT %d\n", );
-*/
-//	ret = net_write( peer, rq, sizeof(*rq), 0);	
-//	net_shutdown(peer);
+	ret = net_write( peer, rq, sizeof(*rq), 0);	
+	net_shutdown(peer);
 
 	return ret;
 }
@@ -472,7 +465,6 @@ handle_get_ack( char* buffer, int count, vec_void_t* registered_files)
 
 	if ((unsigned) count < sizeof(*r)) {
 		orz("received broken GET/ACK, datagram too short");
-
 		return;
 	}
 
@@ -493,6 +485,7 @@ handle_get_ack( char* buffer, int count, vec_void_t* registered_files)
 			current_offset = (char*) r->clients;
 
 			for (; r->count > 0; r->count--) {
+
 				s = (SegmentClient*) current_offset;
 
 				size_t segment_size =
@@ -509,13 +502,12 @@ handle_get_ack( char* buffer, int count, vec_void_t* registered_files)
 				memcpy(clone, current_offset, segment_size);
 
 				vec_push(&rf->related_clients, clone);
-
 			}
 
 			rf->timeout = 30;
 
 			srsly("GET/ACK << %s", hash_data_schar(r->hash_segment.hash));
-			send_list( rf->hash_data->digest, registered_files );
+			send_list( rf->hash_data->digest, rf );
 
 			return;
 		}
