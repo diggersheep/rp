@@ -18,7 +18,43 @@
 #define CMD_DEBUG 99
 
 int
-send_put(struct net* net, const HashData * hd)
+send_get_cli ( struct net* net, const HashData* hd, short index )
+{
+	if ( index >= hd->chunkDigests.length || index < 0 )
+		return -1;
+
+	int err = 0;
+
+	char buffer[sizeof(RequestGetCli)];
+	RequestGetCli * rq = (void*) buffer;
+
+	rq->type   = 100;
+
+	//hash file
+	rq->file_hash_segment.c    = 50;
+	rq->file_hash_segment.size = 32;
+	memcpy(
+		rq->file_hash_segment.hash,
+		hd->digest,
+		32
+	);
+
+	//chunk hash
+	rq->chunk_hash_segment.c     = 51;
+	rq->chunk_hash_segment.index = index; 
+	memcpy(
+		rq->chunk_hash_segment.hash,
+		hd->chunkDigests.data[index],
+		32
+	);
+
+	net_write(net, (void*)rq, sizeof(*rq), 0);
+
+	return err;
+}
+
+int
+send_put(struct net* net, const HashData* hd)
 {
 	int err = 0;
 	char buffer[sizeof(RequestPut)];
@@ -31,7 +67,7 @@ send_put(struct net* net, const HashData * hd)
 	memcpy((void*) rq->hash_segment.hash, hd->digest, sizeof(rq->hash_segment.hash));
 
 	rq->client_segment.v4.c = 55;
-	if (net->version == 4)
+	if (net->version == NET_IPV4)
 		rq->client_segment.v4.ipv = 6;
 	else
 		rq->client_segment.v4.ipv = 18;
@@ -47,9 +83,10 @@ send_put(struct net* net, const HashData * hd)
 
 	net_write(net, (void*) rq, sizeof(*rq), 0);
 
-
 	return err;
 }
+
+
 
 const char*
 status_string(RegisteredFile* rf)
