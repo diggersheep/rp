@@ -180,7 +180,7 @@ net_read ( struct net * net, void * buf, size_t len, int flags )
 	}
 	else if ( ret_select == 0 )
 	{
-		wtf("Warning - select timeout.\n");
+		wtf("Warning - select timeout.");
 		return 0;
 	}
 
@@ -239,7 +239,7 @@ net_read2 ( struct net * net1, struct net * net2, void * buf, size_t len, int fl
 	int ret_select = select( max + 1, &fd_read, NULL, NULL, net1->timeout );
 	if ( ret_select == 0 )
 	{
-		wtf("Warning - select timeout.\n");
+		wtf("Warning - select timeout.");
 		return 0;
 	}
 	else if ( ret_select == -1 )
