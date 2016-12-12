@@ -77,13 +77,42 @@ send_list(
 
 	client = rf->related_clients.data[rand() % rf->related_clients.length];
 
+	int sin_family = client->v4.ipv == 6 ? AF_INET : AF_INET6;
+
 	char address[64];
-	inet_ntop(client->v4.ipv == 6 ? AF_INET : AF_INET6, client->v6.address, address, sizeof(address));
+	inet_ntop(sin_family, client->v6.address, address, sizeof(address));
 	orz("LIST>");
 	orz(" - hash: %s - ", hash_data_schar(hash));
 	orz(" - ipv%d, %s:%d - ", client->v4.ipv == 6 ? 4 : 6, address, ntohs(client->v4.port));
 
-	struct net* peer = malloc(sizeof(*peer));
+	struct net* peer = NULL;
+	int already_registered = 0;
+	int i;
+	vec_foreach (connected_clients, peer, i) {
+		int equal = peer->addr.v4.sin_family == sin_family;
+		equal = equal && peer->addr.v4.sin_port == client->v4.port;
+		equal = equal && (0 == memcmp(&peer->addr.v4.sin_addr, &client->v4.address, client->v4.ipv == 6 ? 4 : 16));
+
+		if (equal) {
+			already_registered = 1;
+
+			break;
+		}
+	}
+
+	if (!already_registered) {
+		peer = malloc(sizeof(*peer));
+
+		int error = net_init_raw(
+			peer,
+			client->v4.port,
+			(void*) &client->v4.address,
+			NET_CLIENT,
+			(client->v4.ipv == 6) ? NET_IPV4 : NET_IPV6
+		);
+
+		net_error(error);
+	}
 
 	struct timeval t;
 	t.tv_sec  = 1;
@@ -102,23 +131,13 @@ send_list(
 		32
 	);
 
-
-	int error = net_init_raw(
-		peer,
-		client->v4.port,
-		(void*) &client->v4.address,
-		NET_CLIENT,
-		(client->v4.ipv == 6) ? NET_IPV4 : NET_IPV6
-	);
-
-	net_error(error);
-
 	send_ec_str(peer, "PING");
 
 	ret = net_write( peer, rq, sizeof(*rq), 0);
 	orz(" - wrote %d - ", ret);
 
-	vec_push(connected_clients, peer);
+	if (!already_registered)
+		vec_push(connected_clients, peer);
 
 	return ret;
 }
