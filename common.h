@@ -85,8 +85,8 @@ typedef struct __attribute__((__packed__)) {
 
 typedef struct __attribute__((__packed__)) {
 	uint8_t  type;
-	uint16_t size;
 	SegmentFileHash  file_hash_segment;
+	uint16_t size;
 	SegmentChunkHash data[0];
 } RequestListAck;
 
