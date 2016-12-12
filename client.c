@@ -19,6 +19,22 @@
 #define CMD_LIST 4
 #define CMD_DEBUG 99
 
+/**
+ * Yahaloo,
+ *
+ * To whomever is reading this file, here’s the basic organisation of most of
+ * the client’s code:
+ *
+ *   - all functions that are used to send a specific request with specific data
+ *     are called send_<request_name>.
+ *     To understand them, you want to look at their matching structure in
+ *     `common.h`.
+ *   - all functions that are used to parse a specific request and take action
+ *     based on its content are called handle_<request_name>.
+ *     Again, you’ll want to look at `common.h`. You may also need to take a
+ *     look at the project’s subject to understand the behavioral’s details.
+ */
+
 int
 send_ec_str(struct net* net, const char* str)
 {
