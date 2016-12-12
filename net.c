@@ -371,7 +371,7 @@ net_read2 ( struct net * net1, struct net * net2, void * buf, size_t len, int fl
 
 
 int
-net_read_vec ( vec_void_t * nets , void * buf, size_t len, int flags )
+net_read_vec ( struct net * net1, struct net * net2, vec_void_t * nets, void * buf, size_t len, int flags )
 {
 	if ( nets->length <= 0 ) return NET_FAIL;
 
@@ -387,14 +387,19 @@ net_read_vec ( vec_void_t * nets , void * buf, size_t len, int flags )
 	fd_set fd_read;
 	FD_ZERO( &fd_read );
 
+
+	net1->current_len = 32;
+	net2->current_len = 32;
+	max = ( max > net1->fd ) ? max : net1->fd;
+	max = ( max > net2->fd ) ? max : net2->fd;
+	FD_SET( net1->fd, &fd_read );
+	FD_SET( net2->fd, &fd_read );
+
 	vec_foreach ( nets, net, i )
 	{
-		if ( i == 0 )
-			timeout = net->timeout;
-
 		net->current_len = 32;
 		max = ( max > net->fd ) ? max : net->fd;
-	//	FD_SET(  nets->data[i]->fd, &fd_read );
+		FD_SET( net->fd, &fd_read );
 	}
 	
 	//max fd for select
@@ -410,8 +415,16 @@ net_read_vec ( vec_void_t * nets , void * buf, size_t len, int flags )
 		return -1;
 	}
 	
-	vec_foreach ( nets, net, i )
+	for ( i = 0 ; i < ( nets->length + 2) ; i++ )
 	{
+		if ( i == 0 )
+			net = net1;
+		else if ( i == 1 )
+			net = net2;
+		else 
+			net = nets->data[i-2];
+
+
 		if ( FD_ISSET( net->fd, &fd_read ) )
 		{
 			ret = recvfrom( net->fd, buf, len, flags, (struct sockaddr *)addr_buf, &net->current_len );
