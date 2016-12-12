@@ -39,6 +39,7 @@ union s_addr
 	struct sockaddr_in6 v6;
 	struct sockaddr_in  v4;
 };
+typedef union s_addr s_addr;
 
 typedef struct
 {
@@ -62,12 +63,12 @@ struct net
 	union s_addr addr;
 	socklen_t    addr_len;
 
-	union s_addr * current;
 	socklen_t      current_len;
 
 	struct timeval * timeout;
 
-//	fd_select select;
+	union s_addr * current;
+
 };
 
 //print errors and exit the program
@@ -86,6 +87,8 @@ int net_shutdown ( struct net * net );
 //sendto and recvfrom with "struct net" structure
 ssize_t net_write ( struct net * restrict net, const void * restrict buf, size_t len, int flags );
 int net_read  ( struct net * restrict net,       void * restrict buf, size_t len, int flags );
+
+int net_read_vec ( vec_void_t * nets , void * buf, size_t len, int flags );
 
 int net_read2 ( struct net * net1, struct net * net2, void * buf, size_t len, int flags );
 
