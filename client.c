@@ -632,7 +632,7 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 					handle_list(buffer, registered_files, net);
 					break;
 				default:
-					orz("Unknowned request");
+					orz("Unknown request type [%d]", type);
 					break;
 			}
 		}
