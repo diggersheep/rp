@@ -624,8 +624,8 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files, uint1
 		int count;
 
 		count = net_read2(net, srv, buffer, sizeof(buffer), 0);
-		if ( srv->current )
-			srv->current->v4.sin_port = htons(tracker_port);
+//		if ( srv->current )
+//			srv->current->v4.sin_port = htons(tracker_port);
 
 		if (count < 0) {
 			orz("something bad happened");

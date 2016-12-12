@@ -128,7 +128,7 @@ debug.o.clean:
 
 debug.o.uninstall:
 
-net.o: net.c ./net.h ./vec/vec.h
+net.o: net.c ./net.h ./vec/vec.h ./debug.h
 	@echo '[01;34m  CC >    [01;37mnet.o[00m'
 	$(Q)$(CC) $(CFLAGS)  -c net.c   -o net.o
 

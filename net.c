@@ -354,7 +354,7 @@ net_read2 ( struct net * net1, struct net * net2, void * buf, size_t len, int fl
 			if ( net->current_len == sizeof(struct sockaddr_in6) ||  net->current_len == sizeof(struct sockaddr_in))
 			{
 				if ( !net->current )
-					net->current = malloc( sizeof(s_addr) );
+					net->current = malloc( sizeof(union s_addr) );
 
 				memcpy( net->current, addr_buf, net->current_len );
 
@@ -389,6 +389,8 @@ net_shutdown ( struct net * net )
 		vec_deinit( &(net->data) );
 	}
 
+	if (net->current)
+		free(net->current);
 
 	err = shutdown(net->fd, SHUT_RDWR);
 
