@@ -127,7 +127,6 @@ handle_list ( char * buffer, vec_void_t * registered_files , struct net * server
 	RequestList    * rq = (void*) buffer;
 	RequestListAck * rp = (void*) buffer;
 
-
 	int i;
 	RegisteredFile * rf;
 	int check = 0;
@@ -182,8 +181,28 @@ handle_list ( char * buffer, vec_void_t * registered_files , struct net * server
 	}
 
 	srsly("addresse %s port %d", address, ntohs(server->current->v4.sin_port));
-	send_ec_str(server, "BONJOUR");
 	net_write( server, rp, sizeof(*rp) + ((i+1) * sizeof(SegmentChunkHash)) , 0 );
+}
+
+void handle_list_ack ( char * buffer, vec_void_t * registered_files )
+{
+	RequestListAck * rq = (void*) buffer;
+
+	if ( rq->file_hash_segment.c != 50 )
+	{
+		orz("LIST/ACK<<Bad file hash segment !");
+		return;
+	}
+
+	short size = rq->size;
+	if ( size <= 0 )
+	{
+		orz("LIST/ACK<< Bad number of file hash (%d)", size);
+		return;
+	}
+
+	srsly("LIST/ACK<< :D !!!!");
+	//mode get client
 }
 
 int
@@ -637,6 +656,9 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files, uint1
 					break;
 				case REQUEST_LIST:
 					handle_list(buffer, registered_files, srv, &connected_clients);
+					break;
+				case REQUEST_LIST_ACK:
+					handle_list_ack(buffer, registered_files );
 					break;
 				default:
 					orz("Unknown request type [%d]", type);
