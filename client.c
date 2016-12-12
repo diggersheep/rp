@@ -196,7 +196,7 @@ handle_list ( char * buffer, vec_void_t * registered_files , struct net * server
 			hash,
 			32
 		);
-		rp->data[i].index = i;	
+		rp->data[i].index = i;
 	}
 
 	srsly("addresse %s port %d", address, ntohs(server->current->v4.sin_port));
@@ -240,20 +240,32 @@ void handle_list_ack ( char * buffer, vec_void_t * registered_files )
 
 	for ( int i = 0 ; i < size ; i++ )
 	{
+		if ( rq->data[i].c != 51 )
+		{
+			orz("ghjk");
+			return;
+		}
+		if ( rq->data[i].size != 32 )
+		{
+			orz("bad");
+			return;
+		}
 		//check for segment
-		char * check_chunk = malloc(sizeof(int) * 1000);
+		int * check_chunk = malloc(sizeof(int) * 1000);
 		vec_push( &rf->received_fragments, check_chunk );
 
 		//chunk hash
 		char * chunk_hash = malloc(32);
-		memcpy( &rq->data[i].hash , chunk_hash, 32);
+		memcpy( chunk_hash, &rq->data[i].hash, 32);
 		vec_push( &rf->hash_data->chunkDigests, chunk_hash );
+
+//		printf(" >> %d\n", (char)rq->data[i].hash[0] );
+		srsly("  Chunk %02d(%02d) : %s \n", i, rq->data[i].index, hash_data_schar( chunk_hash ));
 
 		for ( int j = 0 ; j < 1000 ; j++ )
 			;//send_get_client()
 		
 
-		srsly("  Chunk %02d : %s\n", i, hash_data_schar(rq->data[i].hash ));
 		
 	}
 
