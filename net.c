@@ -418,7 +418,6 @@ net_read_vec ( struct net * net1, struct net * net2, vec_void_t * nets, void * b
 
 	vec_foreach ( nets, net, i )
 	{
-		printf(" i :: %d\n", i);
 		max = ( max > net->fd ) ? max : net->fd;
 		FD_SET( net->fd, &fd_read );
 	}
@@ -435,8 +434,6 @@ net_read_vec ( struct net * net1, struct net * net2, vec_void_t * nets, void * b
 		orz("Error - select");
 		return -1;
 	}
-
-	printf("fghjk\n");
 
 	for ( i = 0 ; i < ( nets->length + 2) ; i++ )
 	{
@@ -459,7 +456,6 @@ net_read_vec ( struct net * net1, struct net * net2, vec_void_t * nets, void * b
 
 				memcpy( net->current, addr_buf, net->current_len );
 
-				printf(" port %d - %d - %d\n", ntohs( net->current->v4.sin_port), ntohs( net->addr.v4.sin_port), i+1 );printf(">>\n");
 				return ret;
 			}
 			else

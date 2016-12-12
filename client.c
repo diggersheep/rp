@@ -81,9 +81,9 @@ send_list(
 
 	char address[64];
 	inet_ntop(sin_family, client->v6.address, address, sizeof(address));
-	orz("LIST>");
-	orz(" - hash: %s - ", hash_data_schar(hash));
-	orz(" - ipv%d, %s:%d - ", client->v4.ipv == 6 ? 4 : 6, address, ntohs(client->v4.port));
+	srsly("LIST>");
+	srsly(" - hash: %s - ", hash_data_schar(hash));
+	srsly(" - ipv%d, %s:%d - ", client->v4.ipv == 6 ? 4 : 6, address, ntohs(client->v4.port));
 
 	struct net* peer = NULL;
 	int already_registered = 0;
@@ -131,10 +131,7 @@ send_list(
 		32
 	);
 
-	send_ec_str(peer, "PING");
-
 	ret = net_write( peer, rq, sizeof(*rq), 0);
-	orz(" - wrote %d - ", ret);
 
 	if (!already_registered)
 		vec_push(connected_clients, peer);
@@ -145,7 +142,7 @@ send_list(
 void
 handle_list ( char * buffer, vec_void_t * registered_files , struct net * server, vec_void_t * connected_clients )
 {
-	orz("HANDLE LIST");
+	srsly("HANDLE LIST>");
 	RequestList    * rq = (void*) buffer;
 	RequestListAck * rp = (void*) buffer;
 
@@ -389,6 +386,8 @@ status_string(RegisteredFile* rf)
 			return "GET";
 		case STATUS_LIST:
 			return "LIST";
+		case STATUS_GET_CLIENT:
+			return "GET_CLIENT";
 	}
 }
 
