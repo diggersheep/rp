@@ -88,37 +88,7 @@ send_list ( const unsigned char * hash, RegisteredFile * rf )
 		NET_CLIENT,
 		(client->v4.ipv == 6) ? NET_IPV4 : NET_IPV6
 	);
-/*
-<<<<<<< HEAD
-	char address[64];
-	inet_ntop(
-		client->v4.ipv == 6 ? AF_INET : AF_INET6,
-		(void*) &client->v4.address, address, sizeof(address)
-	);
 
-	srsly(" - new pair: %s:%d - ", address, ntohs(client->v4.port));
-
-
-	send_ec_str(peer, "Coucou ! j'essaie de faire un list.");
-
-	ret = net_write( peer, rq, sizeof(*rq), 0);
-	if( ret > 0 )
-	{
-		srsly("  SEND - taille %d", ret);
-	}
-	else if ( ret == 0 )
-	{
-		srsly("  Time");
-	}
-	else
-	{
-		srsly("  NOT SEND");
-		perror("");
-	}
-	
-//	net_shutdown(peer);
-=======
-*/
 	net_error(error);
 
 	send_ec_str(&peer, "PING");
@@ -144,7 +114,7 @@ handle_list ( char * buffer, vec_void_t * rf , struct net * net )
 		int j = 0;
 		int check = 0;
 		HashData * hd = NULL;
-		
+
 		for ( j = 0 ; j < rf->length ; j++ )
 		{
 			hd = rf->data[j];
