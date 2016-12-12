@@ -216,6 +216,22 @@ void handle_list_ack ( char * buffer, vec_void_t * registered_files )
 		return;
 	}
 
+	int i;
+	RegisteredFile * rf;
+	vec_foreach ( registered_files, rf, i )
+	{
+		if ( memcmp( rq->file_hash_segment.hash, rf->hash_data->digest, 32) != 0 )
+		{
+			orz("LIST/ACK<< Bad File Hash -> %s", hash_data_schar(rq->file_hash_segment.hash));
+			return;
+		}
+		else
+		{
+			srsly("LIST/ACK<< File Hash -> %s", hash_data_schar(rq->file_hash_segment.hash));	
+			break;
+		}
+	}
+
 	short size = rq->size;
 	if ( size <= 0 )
 	{
@@ -223,8 +239,33 @@ void handle_list_ack ( char * buffer, vec_void_t * registered_files )
 		return;
 	}
 
-	srsly("LIST/ACK<< :D !!!!");
+	vec_init( &rf->received_fragments );
+
+	for ( int i = 0 ; i < size ; i++ )
+	{
+		//check for segment
+		char * check_chunk = malloc(sizeof(int) * 1000);
+		vec_push( &rf->received_fragments, check_chunk );
+
+		//chunk hash
+		char * chunk_hash = malloc(32);
+		memcpy( &rq->data[i].hash , chunk_hash, 32);
+		vec_push( &rf->hash_data->chunkDigests, chunk_hash );
+
+		for ( int j = 0 ; j < 1000 ; j++ )
+			;//send_get_client()
+		
+
+		srsly("  Chunk %02d : %s\n", i, hash_data_schar(rq->data[i].hash ));
+		
+	}
+
+
+
 	//mode get client
+	rf->timeout = 5;
+	rf->status  = STATUS_GET_CLIENT;
+	
 }
 
 int
@@ -399,8 +440,7 @@ handle_ec(char* buffer, int size)
 
 	if ((unsigned) size < sizeof(*r) || (unsigned) size < sizeof(*r) + r->size) {
 		orz("received broken EC, datagram was too short");
-
-		return;	
+		return;
 	}
 
 	if (r->subtype == 0) {
