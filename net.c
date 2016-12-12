@@ -13,7 +13,7 @@ net_error ( int err )
 			fprintf( stderr, "  [ERR] - net_init() - mode not allowed.\n");
 			break;
 		case NET_ERR_INIT_ADDR:
-			fprintf( stderr, "  [ERR] - net_init() - cannot convert IPv6 address.\n");
+			fprintf( stderr, "  [ERR] - net_init() - invalid IP address.\n");
 			break;
 		case NET_ERR_INIT_SOCK:
 			fprintf( stderr, "  [ERR] - net_init() - connot create a socket.\n");
@@ -149,14 +149,13 @@ net_init_raw ( struct net * restrict net, const short port, const char * restric
 		);
 	}
 
-	char address[64];
-	inet_ntop(
-		net->version == 4 ? AF_INET : AF_INET6,
-		(void*) &net->addr.v4.sin_addr,
-		address,
-		sizeof(address)
-	);
-	printf("Init on address %s and %d port.\n", address, ntohs(port));
+
+	if (1) {
+		char address[64];
+		inet_ntop(version == NET_IPV4 ? AF_INET : AF_INET6, ip, address, sizeof(address));
+		// err if @ip can't be copying
+		printf("Init on address %s and %d port.\n", address, ntohs(port));
+	}
 
 	//init socket UDP - ipV6
 	if (version == NET_IPV6)
@@ -340,39 +339,30 @@ net_read2 ( struct net * net1, struct net * net2, void * buf, size_t len, int fl
 		return -1;
 	}
 
+	for (int i = 0; i < 2; i++) {
+		struct net* net;
 
-	if ( FD_ISSET( net1->fd, &fd_read ) )
-	{
-		ret = recvfrom( net1->fd, buf, len, flags, (struct sockaddr *)addr_buf, &net1->current_len );
-		
-		if ( net1->current_len == sizeof(struct sockaddr_in6) ||  net1->current_len == sizeof(struct sockaddr_in))
-		{
-			if (net1->current)
-				free(net1->current);
-			net1->current = malloc( net1->current_len );
-			memcpy( net1->current, addr_buf, net1->current_len );
-			return ret;
-		}
+		if (i == 0)
+			net = net1;
 		else
+			net = net2;
+
+		if ( FD_ISSET( net->fd, &fd_read ) )
 		{
-			return 0;
-		}
-	}
-	if ( FD_ISSET( net2->fd, &fd_read ) )
-	{
-		ret = recvfrom( net2->fd, buf, len, flags, (struct sockaddr *)addr_buf, &net2->current_len );
+			ret = recvfrom( net->fd, buf, len, flags, (struct sockaddr *)addr_buf, &net->current_len );
 			
-		if ( net2->current_len == sizeof(struct sockaddr_in6) ||  net2->current_len == sizeof(struct sockaddr_in))
-		{
-			if (net2->current)
-				free(net2->current);
-			net2->current = malloc( net2->current_len );
-			memcpy( net2->current, addr_buf, net2->current_len );
-			return ret;
-		}
-		else
-		{
-			return 0;  
+			if ( net->current_len == sizeof(struct sockaddr_in6) ||  net->current_len == sizeof(struct sockaddr_in))
+			{
+				if (net->current)
+					free(net->current);
+				net->current = malloc( net->current_len );
+				memcpy( net->current, addr_buf, net->current_len );
+				return ret;
+			}
+			else
+			{
+				return 0;
+			}
 		}
 	}
 
