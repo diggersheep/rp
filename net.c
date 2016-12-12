@@ -373,7 +373,7 @@ net_read2 ( struct net * net1, struct net * net2, void * buf, size_t len, int fl
 int
 net_read_vec ( struct net * net1, struct net * net2, vec_void_t * nets, void * buf, size_t len, int flags )
 {
-	if ( nets->length <= 0 ) return NET_FAIL;
+	//if ( nets->length == 0 ) return net_read2(net1, net2, buf, len, flags);
 
 	int ret = 1;
 	int max = 0;
@@ -382,14 +382,10 @@ net_read_vec ( struct net * net1, struct net * net2, vec_void_t * nets, void * b
 	struct net* net;
 	int i;
 
-	struct timeval * timeout = NULL;
-
 	fd_set fd_read;
 	FD_ZERO( &fd_read );
 
 
-	net1->current_len = 32;
-	net2->current_len = 32;
 	max = ( max > net1->fd ) ? max : net1->fd;
 	max = ( max > net2->fd ) ? max : net2->fd;
 	FD_SET( net1->fd, &fd_read );
@@ -397,14 +393,14 @@ net_read_vec ( struct net * net1, struct net * net2, vec_void_t * nets, void * b
 
 	vec_foreach ( nets, net, i )
 	{
-		net->current_len = 32;
+		printf(" i :: %d\n", i);
 		max = ( max > net->fd ) ? max : net->fd;
 		FD_SET( net->fd, &fd_read );
 	}
 	
 	//max fd for select
 
-	int ret_select = select( max + 1, &fd_read, NULL, NULL, timeout );
+	int ret_select = select( max + 1, &fd_read, NULL, NULL, net1->timeout );
 	if ( ret_select == 0 )
 	{
 		return 0;
@@ -414,7 +410,9 @@ net_read_vec ( struct net * net1, struct net * net2, vec_void_t * nets, void * b
 		orz("Error - select");
 		return -1;
 	}
-	
+
+	printf("fghjk\n");
+
 	for ( i = 0 ; i < ( nets->length + 2) ; i++ )
 	{
 		if ( i == 0 )
