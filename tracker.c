@@ -263,10 +263,54 @@ handle_timeout(vec_void_t* registered_hashes)
 }
 
 int
+parse_arg(int argc, const char** argv, uint16_t* port, const char** address)
+{
+	for (int i = 1; i < argc; i++) {
+		if (!strcmp(argv[i], "-h") || !(strcmp(argv[i], "--help"))) {
+			printf("usage: %s [-p port] [-a address]\n", argv[0]);
+			return -1;
+		} else if (!strcmp(argv[i], "-p")) {
+			if (argc - i > 0) {
+				*port = atol(argv[i+1]);
+
+				i++;
+			} else {
+				return 1;
+			}
+		} else if (!strcmp(argv[i], "-a")) {
+			if (argc - i > 0) {
+				*address = argv[i+1];
+
+				i++;
+			} else {
+				return 1;
+			}
+		} else {
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
+int
 main(int argc, const char** argv)
 {
 	struct net net;
 	int count;
+	uint16_t port = 9000;
+	const char* address = "0.0.0.0";
+
+	switch (parse_arg(argc, argv, &port, &address)) {
+		case 0:
+			break;
+		case 1:
+			return 1;
+		case -1:
+			return 0;
+		default:
+			return 255;
+	}
 
 	vec_void_t registered_hashes;
 
@@ -280,7 +324,7 @@ main(int argc, const char** argv)
 
 	vec_init(&registered_hashes);
 
-	if (net_server(&net, 9000, "0.0.0.0", NET_IPV4) == NET_FAIL) {
+	if (net_server(&net, port, address, NET_IPV4) == NET_FAIL) {
 		orz("Could not init server.");
 
 		vec_deinit(&registered_hashes);
