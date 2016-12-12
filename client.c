@@ -56,6 +56,56 @@ send_ec_str(struct net* net, const char* str)
 	return 0;
 }
 
+void
+send_get_client(RegisteredFile* rf, vec_void_t* connected_clients)
+{
+	RequestGetClient r;
+	int i, j, k;
+	SegmentClient* client;
+	struct net* net;
+
+	r.type = REQUEST_GET_CLIENT;
+	r.size = sizeof(SegmentFileHash) + sizeof(SegmentChunkHash);
+
+	r.file_hash_segment.c = 50;
+	memcpy(r.file_hash_segment.hash, rf->hash_data->digest, 32);
+
+	r.chunk_hash_segment.size = 34;
+	r.chunk_hash_segment.c = 51;
+
+	vec_foreach (connected_clients, net, i) {
+		vec_foreach (&rf->related_clients, client, j) {
+			int sin_family = client->v4.ipv == 6 ? AF_INET : AF_INET6;
+			int equal = net->addr.v4.sin_family == sin_family;
+			equal = equal && net->addr.v4.sin_port == client->v4.port;
+			equal = equal && (0 == memcmp(&net->addr.v4.sin_addr, &client->v4.address, client->v4.ipv == 6 ? 4 : 16));
+
+			if (equal) {
+				printf("Should be sending client get request here.\n");
+
+				unsigned char* hash;
+				vec_foreach (&rf->hash_data->chunkDigests, hash, k) {
+					int l = 0;
+
+					for (; l < 1000; l++) {
+						if (!((int*) rf->received_fragments.data[k])[l]) {
+							r.chunk_hash_segment.index = k;
+
+							memcpy(r.chunk_hash_segment.hash, hash, 32);
+
+							net_write(net, &r, sizeof(r), 0);
+
+							break;
+						}
+					}
+				}
+
+				break;
+			}
+		}
+	}
+}
+
 int
 send_list(
 	const unsigned char * hash,
@@ -261,12 +311,8 @@ void handle_list_ack ( char * buffer, vec_void_t * registered_files )
 
 //		printf(" >> %d\n", (char)rq->data[i].hash[0] );
 		srsly("  Chunk %02d(%02d) : %s \n", i, rq->data[i].index, hash_data_schar( chunk_hash ));
-
-		for ( int j = 0 ; j < 1000 ; j++ )
-			;//send_get_client()
-		
-
-		
+//		for ( int j = 0 ; j < 1000 ; j++ )
+//			send_get_client(buffer, );
 	}
 
 
@@ -433,6 +479,10 @@ handle_timeout(struct net* tracker, struct net* server, vec_void_t* registered_f
 				case STATUS_LIST:
 					srsly("LIST> %s", hash_data_schar(rf->hash_data->digest));
 					send_list( rf->hash_data->digest, rf, connected_clients );
+					break;
+				case STATUS_GET_CLIENT:
+					srsly("GET-CLIENT> %s", hash_data_schar(rf->hash_data->digest));
+					send_get_client(rf, connected_clients);
 					break;
 			}
 		} else if (rf->status == STATUS_KEEP_ALIVE) {
