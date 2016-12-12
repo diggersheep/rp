@@ -42,16 +42,16 @@ send_list ( const unsigned char * hash, RegisteredFile * rf )
 {
 	if ( !hash ) return NET_FAIL;
 
-	int ret = 0;
+	int ret    = 0;
 
 	SegmentClient * client;
+
 
 	if ( rf->related_clients.length < 1 )
 	{
 		orz("No clients for \"%s\"", hash_data_schar(hash));
 		return -1;
 	}
-	srsly( "nombre de clients : %d", rf->related_clients.length );
 
 	client = rf->related_clients.data[ rand() % rf->related_clients.length ];
 
@@ -65,6 +65,7 @@ send_list ( const unsigned char * hash, RegisteredFile * rf )
 	unsigned char buffer[sizeof(RequestList)];
 	RequestList * rq = (void*) buffer;
 
+//	rq->type = 1245;
 	rq->type = REQUEST_LIST;
 	
 	rq->hash.c    = 50;
@@ -86,18 +87,19 @@ send_list ( const unsigned char * hash, RegisteredFile * rf )
 
 	char address[64];
 	inet_ntop(
-		addr->v4.ipv == 6 ? AF_INET : AF_INET6,
+		client->v4.ipv == 6 ? AF_INET : AF_INET6,
 		(void*) &client->v4.address, address, sizeof(address)
 	);
 
-	srsly("%d\n", client->v4.ipv);
 	srsly(" - new pair: %s:%d - ", address, ntohs(client->v4.port));
 
+
+	send_ec_str(peer, "Coucou ! j'essaie de faire un list.");
 
 	ret = net_write( peer, rq, sizeof(*rq), 0);
 	if( ret > 0 )
 	{
-		srsly("  SEND");
+		srsly("  SEND - taille %d", ret);
 	}
 	else if ( ret == 0 )
 	{
@@ -109,7 +111,7 @@ send_list ( const unsigned char * hash, RegisteredFile * rf )
 		perror("");
 	}
 	
-	net_shutdown(peer);
+//	net_shutdown(peer);
 
 	return ret;
 }
@@ -152,8 +154,6 @@ handle_list ( char * buffer, vec_void_t * rf , struct net * net )
 			send_ec_str( net, "LIST ACK> A client try to get a file but ... We don't have it." );
 			return;	
 		}
-
-
 
 		unsigned char buf[ 1000*10 ];
 		RequestListAck * rp = (void*) buf;

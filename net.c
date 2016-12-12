@@ -149,11 +149,14 @@ net_init_raw ( struct net * restrict net, const short port, const char * restric
 		);
 	}
 
-	// err if @ip can't be copying
-	if ( err != 1 )
-		return NET_ERR_INIT_ADDR;
-	printf("Init on address %s and %d port.\n", ip, port);
-
+	char address[64];
+	inet_ntop(
+		net->version == 4 ? AF_INET : AF_INET6,
+		(void*) &net->addr.v4.sin_addr,
+		address,
+		sizeof(address)
+	);
+	printf("Init on address %s and %d port.\n", address, ntohs(port));
 
 	//init socket UDP - ipV6
 	if (version == NET_IPV6)
@@ -209,6 +212,15 @@ net_write ( struct net * net, const void * buf, size_t len, int flags )
 
 	if ( net->mode == NET_CLIENT )
 	{
+		char address[64];
+		inet_ntop(
+			net->version == 4 ? AF_INET : AF_INET6,
+			(void*) &net->addr.v4.sin_addr,
+			address,
+			sizeof(address)
+		);
+		printf("send to address %s and %d port.\n", address, ntohs(net->addr.v4.sin_port) );
+
 		ret = sendto(net->fd, buf, len, flags, (struct sockaddr *)&net->addr, net->addr_len);
 	}
 	else
