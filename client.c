@@ -121,82 +121,69 @@ send_list(
 }
 
 void
-handle_list ( char * buffer, vec_void_t * rf , struct net * net )
+handle_list ( char * buffer, vec_void_t * registered_files , struct net * server, vec_void_t * connected_clients )
 {
-	RequestList * rq = (void*) buffer;
+	orz("HANDLE LIST");
+	RequestList    * rq = (void*) buffer;
+	RequestListAck * rp = (void*) buffer;
 
-	printf("xcfghnk;mù\n");
 
-	if ( rq->hash.c == 50 && rq->hash.size == 32 )
+	int i;
+	RegisteredFile * rf;
+	int check = 0;
+
+	if ( rq->hash.c != 50 )
 	{
-		srsly("Someone is trying to get a file");
+		wtf("LIST> bad file hash %s", hash_data_schar(rq->hash.hash));
+		send_ec_str(server, "Bad file Hash !");
 
-		int j = 0;
-		int check = 0;
-		HashData * hd = NULL;
+		return;
+	}
 
-		for ( j = 0 ; j < rf->length ; j++ )
+	vec_foreach ( registered_files, rf, i)
+	{
+		for ( int j = 0 ; j < 32 ; j++ )
 		{
-			hd = rf->data[j];
-			// comparaison file hash
-			for ( int i = 0 ; i < 32 ; i++ )
-			{
-				if ( hd->digest[i] != rq->hash.hash[i] )
-				{
-					check = 1;
-					break;
-				}
-				else
-					check = 1;
-			}
+			check = memcmp( rf->hash_data->digest, rq->hash.hash, 32 );	
 		}
+	}
+	if ( check != 0 )
+	{
+		wtf("LIST> we don't have %s", hash_data_schar(rq->hash.hash));
+		send_ec_str(server, "No list !");
+		return;
+	}
 
-		if ( check == 1 )
-		{
-			/* TODO : RequestListError */
-			wtf("LIST ACK> A client try to get a file but ... We don't have it.");
-			send_ec_str( net, "LIST ACK> A client try to get a file but ... We don't have it." );
-			return;	
-		}
+	char address[64];
+	address[0] = 0x00;
+	inet_ntop(
+		server->version == NET_IPV4 ? AF_INET : AF_INET6,
+		&server->current->v4.sin_addr,
+		address,
+		sizeof(address)
+	);
 
-		unsigned char buf[ 1000*10 ];
-		RequestListAck * rp = (void*) buf;
-		
-		rp->type = REQUEST_LIST_ACK;
-		rp->size = hd->chunkDigests.length;
+	rf = registered_files->data[i-1];
 
-		rp->file_hash_segment.c    = 50;
-		rp->file_hash_segment.size = 32;
+	rp->type = REQUEST_LIST_ACK;
+	rp->size = rf->hash_data->chunkDigests.length;
+	unsigned char * hash;
+
+	vec_foreach( &rf->hash_data->chunkDigests, hash, i )
+	{
+		rp->data[i].c    = 51;
+		rp->data[i].size = 32;
 		memcpy(
-			rp->file_hash_segment.hash,
-			hd->digest,
+			rp->data[i].hash,
+			hash,
 			32
 		);
-
-		for ( int i = 0 ; i < hd->chunkDigests.length ; i++ )
-		{
-			rp->data[i].c    = 51;
-			rp->data[i].size = 32;
-			
-			memcpy(
-				rp->data[i].hash,
-				hd->chunkDigests.data[i],
-				32
-			);
-		}
-
-		net_write(
-			net,
-			&rp,
-			sizeof(RequestListAck) + rp->size * sizeof(SegmentChunkHash),
-			0
-		);
-
+		rp->data[i].index = i;	
 	}
-	else
-	{
-		orz("LIST ACK FAILED - constants");
-	}
+
+	srsly("addresse %s port %d", address, ntohs(server->current->v4.sin_port));
+	send_ec_str(server, "BONJOUR");
+	net_write( server, rp, sizeof(*rp) + ((i+1) * sizeof(SegmentChunkHash)) , 0 );
 }
 
 int
@@ -605,7 +592,7 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files, uint1
 	vec_void_t connected_clients;
 
 	struct timeval t;
-	t.tv_sec = 0;
+	t.tv_sec  = 0;
 	t.tv_usec = 0;
 
 	vec_init(&connected_clients);
@@ -617,7 +604,7 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files, uint1
 	{
 		int count;
 
-		count = net_read2(net, srv, buffer, sizeof(buffer), 0);
+		count = net_read_vec(net,srv, &connected_clients, buffer, sizeof(buffer), 0);
 
 		if (count < 0) {
 			orz("something bad happened");
@@ -649,7 +636,7 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files, uint1
 					handle_get_ack(buffer, count, registered_files, &connected_clients);
 					break;
 				case REQUEST_LIST:
-					handle_list(buffer, registered_files, net);
+					handle_list(buffer, registered_files, srv, &connected_clients);
 					break;
 				default:
 					orz("Unknown request type [%d]", type);
@@ -861,10 +848,7 @@ main ( int argc, const char* argv[] )
 	err = net_init(&srv, peers_port, "0.0.0.0", NET_SERVER, NET_IPV4);
 	net_error(err);
 
-	if (net.version == 4)
-		srv.current = (union s_addr *) &(net.addr.v4);
-	else
-		srv.current = (union s_addr *) &(net.addr.v6);
+
 
 	event_loop(&net, &srv, &registered_files, tracker_port);
 
