@@ -30,7 +30,7 @@ net_error ( int err )
 
 //init struct net
 int
-net_init   ( struct net * restrict net, const short port, const char * restrict ip, int mode, int version )
+net_init ( struct net * restrict net, const short port, const char * restrict ip, int mode, int version )
 {
 	int err = 0; // error return
 
@@ -237,10 +237,7 @@ net_write ( struct net * net, const void * buf, size_t len, int flags )
 	return ret;
 }
 
-void net_set_timeout ( struct net * net, struct timeval * t )
-{
-	net->timeout = t;
-}
+void net_set_timeout ( struct net * net, struct timeval * t ) { net->timeout = t; }
 
 // recvfrom with net structure
 int
@@ -314,7 +311,7 @@ net_read2 ( struct net * net1, struct net * net2, void * buf, size_t len, int fl
 	int ret = 1;
 	int max = 0;
 
-	unsigned char addr_buf[32];
+	unsigned char addr_buf[sizeof(struct sockaddr_in6)];
 
 
 	fd_set fd_read;
@@ -358,11 +355,80 @@ net_read2 ( struct net * net1, struct net * net2, void * buf, size_t len, int fl
 
 				memcpy( net->current, addr_buf, net->current_len );
 
-				printf(" port %d - %d\n", ntohs( net->current->v4.sin_port), net->current->v4.sin_port );printf(">>\n");
+				printf(" port %d - %d - %d\n", ntohs( net->current->v4.sin_port), ntohs( net->addr.v4.sin_port), i+1 );printf(">>\n");
 				return ret;
 			}
 			else
 			{
+				orz("read2 - bad size");
+				return 0;
+			}
+		}
+	}
+
+	return ret;
+}
+
+
+int
+net_read_vec ( vec_void_t * nets , void * buf, size_t len, int flags )
+{
+	if ( nets->length <= 0 ) return NET_FAIL;
+
+	int ret = 1;
+	int max = 0;
+
+	unsigned char addr_buf[sizeof(struct sockaddr_in6)];
+	struct net* net;
+	int i;
+
+	struct timeval * timeout = NULL;
+
+	fd_set fd_read;
+	FD_ZERO( &fd_read );
+
+	vec_foreach ( nets, net, i )
+	{
+		if ( i == 0 )
+			timeout = net->timeout;
+
+		net->current_len = 32;
+		max = ( max > net->fd ) ? max : net->fd;
+	//	FD_SET(  nets->data[i]->fd, &fd_read );
+	}
+	
+	//max fd for select
+
+	int ret_select = select( max + 1, &fd_read, NULL, NULL, timeout );
+	if ( ret_select == 0 )
+	{
+		return 0;
+	}
+	else if ( ret_select == -1 )
+	{
+		orz("Error - select");
+		return -1;
+	}
+	
+	vec_foreach ( nets, net, i )
+	{
+		if ( FD_ISSET( net->fd, &fd_read ) )
+		{
+			ret = recvfrom( net->fd, buf, len, flags, (struct sockaddr *)addr_buf, &net->current_len );
+			
+			if ( net->current_len == sizeof(struct sockaddr_in6) ||  net->current_len == sizeof(struct sockaddr_in))
+			{
+				if ( !net->current )
+					net->current = malloc( sizeof(s_addr) );
+
+				memcpy( net->current, addr_buf, net->current_len );
+
+				printf(" port %d - %d - %d\n", ntohs( net->current->v4.sin_port), ntohs( net->addr.v4.sin_port), i+1 );printf(">>\n");
+				return ret;
+			}
+			else
+			{
+				orz("read_vec - bad size");
 				return 0;
 			}
 		}
