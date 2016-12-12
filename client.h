@@ -17,6 +17,7 @@ typedef struct {
 		STATUS_LIST
 	} status;
 	int timeout;
+
 	vec_void_t related_clients; //SegmentClient
 	vec_void_t received_fragments; /* of int[1000] */
 } RegisteredFile;

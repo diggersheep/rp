@@ -42,9 +42,10 @@ send_list ( const unsigned char * hash, RegisteredFile * rf )
 {
 	if ( !hash ) return NET_FAIL;
 
-	int ret = 0;
+	int ret    = 0;
 
 	SegmentClient * client;
+
 
 	if ( rf->related_clients.length < 1 )
 	{
@@ -79,6 +80,7 @@ send_list ( const unsigned char * hash, RegisteredFile * rf )
 		32
 	);
 
+
 	int error = net_init_raw(
 		&peer,
 		client->v4.port,
@@ -86,7 +88,37 @@ send_list ( const unsigned char * hash, RegisteredFile * rf )
 		NET_CLIENT,
 		(client->v4.ipv == 6) ? NET_IPV4 : NET_IPV6
 	);
+/*
+<<<<<<< HEAD
+	char address[64];
+	inet_ntop(
+		client->v4.ipv == 6 ? AF_INET : AF_INET6,
+		(void*) &client->v4.address, address, sizeof(address)
+	);
 
+	srsly(" - new pair: %s:%d - ", address, ntohs(client->v4.port));
+
+
+	send_ec_str(peer, "Coucou ! j'essaie de faire un list.");
+
+	ret = net_write( peer, rq, sizeof(*rq), 0);
+	if( ret > 0 )
+	{
+		srsly("  SEND - taille %d", ret);
+	}
+	else if ( ret == 0 )
+	{
+		srsly("  Time");
+	}
+	else
+	{
+		srsly("  NOT SEND");
+		perror("");
+	}
+	
+//	net_shutdown(peer);
+=======
+*/
 	net_error(error);
 
 	send_ec_str(&peer, "PING");
@@ -136,8 +168,6 @@ handle_list ( char * buffer, vec_void_t * rf , struct net * net )
 			send_ec_str( net, "LIST ACK> A client try to get a file but ... We don't have it." );
 			return;	
 		}
-
-
 
 		unsigned char buf[ 1000*10 ];
 		RequestListAck * rp = (void*) buf;
@@ -502,7 +532,6 @@ handle_get_ack( char* buffer, int count, vec_void_t* registered_files)
 
 				if (count < 0) {
 					orz("broken GET/ACK received and partly handled");
-
 					break;
 				}
 
@@ -526,7 +555,6 @@ handle_get_ack( char* buffer, int count, vec_void_t* registered_files)
 			rf->timeout = 30;
 
 			send_list( rf->hash_data->digest, rf );
-
 			return;
 		}
 	}
@@ -541,7 +569,6 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 
 	if ((unsigned) count < sizeof(*r)) {
 		orz(" - received broken GET-CLIENT - ");
-
 		return;
 	}
 
@@ -555,7 +582,6 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 
 			if (!f) {
 				orz("fopen");
-
 				return;
 			}
 
@@ -582,7 +608,7 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 }
 
 int
-event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
+event_loop(struct net* net, struct net* srv, vec_void_t* registered_files, uint16_t tracker_port )
 {
 	char buffer[CHUNK_SIZE * 2];
 
@@ -598,6 +624,8 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 		int count;
 
 		count = net_read2(net, srv, buffer, sizeof(buffer), 0);
+		if ( srv->current )
+			srv->current->v4.sin_port = htons(tracker_port);
 
 		if (count < 0) {
 			orz("something bad happened");
@@ -839,7 +867,7 @@ main ( int argc, const char* argv[] )
 	else
 		srv.current = (union s_addr *) &(net.addr.v6);
 
-	event_loop(&net, &srv, &registered_files);
+	event_loop(&net, &srv, &registered_files, tracker_port);
 
 	for (int i = 0; i < registered_files.length; i++) {
 		RegisteredFile* rf = registered_files.data[i];
