@@ -28,7 +28,7 @@ send_ec_str(struct net* net, const char* str)
 	r->type = REQUEST_EC;
 	r->subtype = 0;
 
-	int len = snprintf((void*) r->data, 1024 - sizeof(*r), "%s", str);
+	int len = snprintf((void*) r->data, sizeof(buffer) - sizeof(*r), "%s", str);
 
 	r->size = len;
 
@@ -51,16 +51,16 @@ send_list ( const unsigned char * hash, RegisteredFile * rf )
 		orz("No clients for \"%s\"", hash_data_schar(hash));
 		return -1;
 	}
-	srsly( "nombre de clients : %d", rf->related_clients.length );
 
 	client = rf->related_clients.data[ rand() % rf->related_clients.length ];
 
-//	client->v4.port = htons(9001);
-	srsly( "port %d", ntohs(client->v4.port)	 );
+	char address[64];
+	inet_ntop(client->v4.ipv == 6 ? AF_INET : AF_INET6, client->v6.address, address, sizeof(address));
+	orz("LIST>");
+	orz(" - hash: %s - ", hash_data_schar(hash));
+	orz(" - ipv%d, %s:%d - ", client->v4.ipv == 6 ? 4 : 6, address, ntohs(client->v4.port));
 
-
-	char buf[sizeof(struct net)];
-	struct net * peer = (void*) buf;
+	struct net peer;
 
 	struct timeval t;
 	t.tv_sec  = 1;
@@ -79,19 +79,21 @@ send_list ( const unsigned char * hash, RegisteredFile * rf )
 		32
 	);
 
-
-
-
-	net_init_raw(
-		peer,
+	int error = net_init_raw(
+		&peer,
 		client->v4.port,
-		(void*)&client->v4.address,
+		(void*) &client->v4.address,
 		NET_CLIENT,
 		(client->v4.ipv == 6) ? NET_IPV4 : NET_IPV6
 	);
 
-	ret = net_write( peer, rq, sizeof(*rq), 0);	
-	net_shutdown(peer);
+	net_error(error);
+
+	send_ec_str(&peer, "PING");
+
+	ret = net_write( &peer, rq, sizeof(*rq), 0);
+	orz(" - wrote %d - ", ret);
+	net_shutdown(&peer);
 
 	return ret;
 }
