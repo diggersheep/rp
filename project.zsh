@@ -16,5 +16,5 @@ sources[client]="net.c hash.c sha256/sha256.c vec/vec.c client.c debug.c"
 CC=clang
 CFLAGS="-std=gnu11 -Wall -Wextra -g -O3"
 
-dist=(Makefile project.zsh)
+dist=(Makefile project.zsh *.md *.1)
 
