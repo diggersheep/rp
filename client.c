@@ -608,7 +608,7 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 }
 
 int
-event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
+event_loop(struct net* net, struct net* srv, vec_void_t* registered_files, uint16_t tracker_port )
 {
 	char buffer[CHUNK_SIZE * 2];
 
@@ -624,6 +624,8 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 		int count;
 
 		count = net_read2(net, srv, buffer, sizeof(buffer), 0);
+		if ( srv->current )
+			srv->current->v4.sin_port = htons(tracker_port);
 
 		if (count < 0) {
 			orz("something bad happened");
@@ -658,7 +660,7 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 					handle_list(buffer, registered_files, net);
 					break;
 				default:
-					orz("Unknowned request");
+					orz("Unknown request %d", type);
 					break;
 			}
 		}
@@ -865,7 +867,7 @@ main ( int argc, const char* argv[] )
 	else
 		srv.current = (union s_addr *) &(net.addr.v6);
 
-	event_loop(&net, &srv, &registered_files);
+	event_loop(&net, &srv, &registered_files, tracker_port);
 
 	for (int i = 0; i < registered_files.length; i++) {
 		RegisteredFile* rf = registered_files.data[i];

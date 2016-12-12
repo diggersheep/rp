@@ -72,7 +72,6 @@ net_init   ( struct net * restrict net, const short port, const char * restrict 
 		return NET_ERR_INIT_ADDR;
 	printf("Init on address %s and %d port.\n", ip, port);
 
-
 	//init socket UDP - ipV6
 	if (version == NET_IPV6)
 		net->fd = socket(AF_INET6, SOCK_DGRAM, 0);
@@ -284,6 +283,7 @@ net_read ( struct net * net, void * buf, size_t len, int flags )
 	{
 		if (net->current)
 			free(net->current);
+	
 		net->current = malloc( net->current_len );
 		memcpy( net->current, addr_buf, net->current_len );
 	}
@@ -326,7 +326,7 @@ net_read2 ( struct net * net1, struct net * net2, void * buf, size_t len, int fl
 	net2->current_len = 32;
 
 	//max fd for select
-	max = ( net1->fd > net2->fd ) ? net2->fd : net1->fd;
+	max = ( net1->fd > net2->fd ) ? net1->fd : net2->fd;
 
 	int ret_select = select( max + 1, &fd_read, NULL, NULL, net1->timeout );
 	if ( ret_select == 0 )
@@ -353,10 +353,12 @@ net_read2 ( struct net * net1, struct net * net2, void * buf, size_t len, int fl
 			
 			if ( net->current_len == sizeof(struct sockaddr_in6) ||  net->current_len == sizeof(struct sockaddr_in))
 			{
-				if (net->current)
-					free(net->current);
-				net->current = malloc( net->current_len );
+				if ( !net->current )
+					net->current = malloc( sizeof(s_addr) );
+
 				memcpy( net->current, addr_buf, net->current_len );
+
+				printf(" port %d - %d\n", ntohs( net->current->v4.sin_port), net->current->v4.sin_port );printf(">>\n");
 				return ret;
 			}
 			else
@@ -386,6 +388,7 @@ net_shutdown ( struct net * net )
 		}
 		vec_deinit( &(net->data) );
 	}
+
 
 	err = shutdown(net->fd, SHUT_RDWR);
 
