@@ -54,22 +54,25 @@ send_ec_str(struct net* net, const char* str)
 }
 
 int
-send_list ( const unsigned char * hash, RegisteredFile * rf )
+send_list(
+	const unsigned char * hash,
+	RegisteredFile * rf,
+	vec_void_t* connected_clients
+)
 {
-	if ( !hash ) return NET_FAIL;
+	if (!hash)
+		return NET_FAIL;
 
-	int ret    = 0;
+	int ret = 0;
 
 	SegmentClient * client;
 
-
-	if ( rf->related_clients.length < 1 )
-	{
+	if ( rf->related_clients.length < 1 ) {
 		orz("No clients for \"%s\"", hash_data_schar(hash));
 		return -1;
 	}
 
-	client = rf->related_clients.data[ rand() % rf->related_clients.length ];
+	client = rf->related_clients.data[rand() % rf->related_clients.length];
 
 	char address[64];
 	inet_ntop(client->v4.ipv == 6 ? AF_INET : AF_INET6, client->v6.address, address, sizeof(address));
@@ -77,7 +80,7 @@ send_list ( const unsigned char * hash, RegisteredFile * rf )
 	orz(" - hash: %s - ", hash_data_schar(hash));
 	orz(" - ipv%d, %s:%d - ", client->v4.ipv == 6 ? 4 : 6, address, ntohs(client->v4.port));
 
-	struct net peer;
+	struct net* peer = malloc(sizeof(*peer));
 
 	struct timeval t;
 	t.tv_sec  = 1;
@@ -87,7 +90,7 @@ send_list ( const unsigned char * hash, RegisteredFile * rf )
 	RequestList * rq = (void*) buffer;
 
 	rq->type = REQUEST_LIST;
-	
+
 	rq->hash.c    = 50;
 	rq->hash.size = 32;
 	memcpy(
@@ -98,7 +101,7 @@ send_list ( const unsigned char * hash, RegisteredFile * rf )
 
 
 	int error = net_init_raw(
-		&peer,
+		peer,
 		client->v4.port,
 		(void*) &client->v4.address,
 		NET_CLIENT,
@@ -107,11 +110,12 @@ send_list ( const unsigned char * hash, RegisteredFile * rf )
 
 	net_error(error);
 
-	send_ec_str(&peer, "PING");
+	send_ec_str(peer, "PING");
 
-	ret = net_write( &peer, rq, sizeof(*rq), 0);
+	ret = net_write( peer, rq, sizeof(*rq), 0);
 	orz(" - wrote %d - ", ret);
-	net_shutdown(&peer);
+
+	vec_push(connected_clients, peer);
 
 	return ret;
 }
@@ -322,7 +326,7 @@ status_string(RegisteredFile* rf)
 
 
 void
-handle_timeout(struct net* tracker, struct net* server, vec_void_t* registered_files)
+handle_timeout(struct net* tracker, struct net* server, vec_void_t* registered_files, vec_void_t* connected_clients)
 {
 	int i;
 	RegisteredFile* rf;
@@ -348,7 +352,7 @@ handle_timeout(struct net* tracker, struct net* server, vec_void_t* registered_f
 					break;
 				case STATUS_LIST:
 					srsly("LIST> %s", hash_data_schar(rf->hash_data->digest));
-					send_list( rf->hash_data->digest, rf );
+					send_list( rf->hash_data->digest, rf, connected_clients );
 					break;
 			}
 		} else if (rf->status == STATUS_KEEP_ALIVE) {
@@ -477,7 +481,7 @@ handle_keep_alive_error(struct net* tracker, struct net* server, char* buffer, i
 }
 
 void
-handle_get_ack( char* buffer, int count, vec_void_t* registered_files)
+handle_get_ack( char* buffer, int count, vec_void_t* registered_files, vec_void_t* connected_clients)
 {
 	RequestGetAck* r = (void*) buffer;
 	int i;
@@ -540,7 +544,7 @@ handle_get_ack( char* buffer, int count, vec_void_t* registered_files)
 
 			rf->timeout = 30;
 
-			send_list( rf->hash_data->digest, rf );
+			send_list( rf->hash_data->digest, rf, connected_clients );
 			return;
 		}
 	}
@@ -598,9 +602,13 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files, uint1
 {
 	char buffer[CHUNK_SIZE * 2];
 
+	vec_void_t connected_clients;
+
 	struct timeval t;
 	t.tv_sec = 0;
 	t.tv_usec = 0;
+
+	vec_init(&connected_clients);
 
 	net_set_timeout(net, &t);
 	net_set_timeout(srv, &t);
@@ -610,14 +618,12 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files, uint1
 		int count;
 
 		count = net_read2(net, srv, buffer, sizeof(buffer), 0);
-//		if ( srv->current )
-//			srv->current->v4.sin_port = htons(tracker_port);
 
 		if (count < 0) {
 			orz("something bad happened");
 			net_error(count);
 		} else if (count == 0) { /* timeout */
-			handle_timeout(net, srv, registered_files);
+			handle_timeout(net, srv, registered_files, &connected_clients);
 
 			t.tv_sec = 1;
 		} else {
@@ -640,7 +646,7 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files, uint1
 					handle_keep_alive_error(net, srv, buffer, count, registered_files);
 					break;
 				case REQUEST_GET_ACK:
-					handle_get_ack(buffer, count, registered_files);
+					handle_get_ack(buffer, count, registered_files, &connected_clients);
 					break;
 				case REQUEST_LIST_ACK:
 					handle_list(buffer, registered_files, net);
@@ -651,6 +657,13 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files, uint1
 			}
 		}
 	}
+
+	int i;
+	struct net* client;
+	vec_foreach (&connected_clients, client, i) {
+		free(client);
+	}
+	vec_deinit(&connected_clients);
 
 	return 0;
 }
