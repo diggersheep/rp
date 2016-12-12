@@ -33,6 +33,9 @@
  *     based on its content are called handle_<request_name>.
  *     Again, you’ll want to look at `common.h`. You may also need to take a
  *     look at the project’s subject to understand the behavioral’s details.
+ *
+ * event_loop() is where most of the action takes place. It’s the main loop,
+ * and basically all incoming requests are handled in it.
  */
 
 int
@@ -722,6 +725,16 @@ get_file(vec_void_t* files, const char* digest, const char* filename)
 	srsly("registered for GET > %s", filename);
 }
 
+/**
+ * Hand-made parameters parsing.
+ *
+ * Read the man page to know what it parses or not.
+ *
+ * Short option syntax is supported, but won’t be of use considering that all
+ * possible options require a parameter.
+ *
+ * TODO: Don’t hardcode stuff!
+ */
 int
 parse_arg(
 	int argc, const char* argv[],
@@ -847,12 +860,16 @@ main ( int argc, const char* argv[] )
 	if (0 != parse_arg(argc, argv, &tracker_port, &peers_port, &destination, &registered_files))
 		return 1;
 
+	/* TODO: Is a default destination required? */
 	if (!destination) {
 		orz("no destination set, use -h <addr>");
 
 		return 1;
 	}
 
+	/* `net` will be the connection to the tracker,
+	 * whereas `srv` will be the listening socket for incoming connections from
+	 * other peers */
 	struct net net;
 	struct net srv;
 
@@ -861,13 +878,9 @@ main ( int argc, const char* argv[] )
 	err = net_init(&srv, peers_port, "0.0.0.0", NET_SERVER, NET_IPV4);
 	net_error(err);
 
-	if (net.version == 4)
-		srv.current = (union s_addr *) &(net.addr.v4);
-	else
-		srv.current = (union s_addr *) &(net.addr.v6);
-
 	event_loop(&net, &srv, &registered_files, tracker_port);
 
+	/* Memory freeing, obviously. */
 	for (int i = 0; i < registered_files.length; i++) {
 		RegisteredFile* rf = registered_files.data[i];
 

@@ -3,7 +3,11 @@
 
 #include "debug.h"
 
-//print errors and exit
+/**
+ * Prints an error from net_init() as a string on stderr.
+ *
+ * Does nothing else.
+ */
 void
 net_error ( int err )
 {
@@ -27,8 +31,14 @@ net_error ( int err )
 	exit( err );
 }
 
-
-//init struct net
+/**
+ * Initialisation code for a given `struct net`.
+ *
+ * All received parameters *have* to be in host format.
+ *
+ * `mode` *has* to be one of NET_CLIENT or NET_SERVER.
+ * `version` *has* to be one of NET_IPV4 or NET_IPV6.
+ */
 int
 net_init ( struct net * restrict net, const short port, const char * restrict ip, int mode, int version )
 {
@@ -98,9 +108,12 @@ net_init ( struct net * restrict net, const short port, const char * restrict ip
 	return NET_OK;
 }
 
-
-
-
+/**
+ * Initializes a `struct net`. IP address and port are to be given in network
+ * format.
+ *
+ * See also net_init().
+ */
 int
 net_init_raw ( struct net * restrict net, const short port, const char * restrict ip, int mode, int version )
 {
@@ -182,29 +195,41 @@ net_init_raw ( struct net * restrict net, const short port, const char * restric
 	return NET_OK;
 }
 
-
-// Lazy init for server and client
+/**
+ * Wrapper around net_init() to quickly create client connections.
+ */
 int
 net_client ( struct net * net, const short port, const char * ip6, int version )
 {
 	return net_init(net, port, ip6, NET_CLIENT, version );
 }
 
+/**
+ * Wrapper around net_init() to quickly create server connections.
+ */
 int
 net_server ( struct net * net, const short port, const char * ip6, int version )
 {
 	return net_init(net, port, ip6, NET_SERVER, version);
 }
 
-
-// sendto with net structure
+/**
+ * Similar to write(2), but works with a `struct net`.
+ *
+ * Sends `len` bytes from `buf` though the connection `net`.
+ *
+ * No flag is currently supported.
+ */
 ssize_t
 net_write ( struct net * net, const void * buf, size_t len, int flags )
 {
 	//some check
-	if ( !net ) return NET_FAIL;
-	if ( net->mode != NET_SERVER && net->mode != NET_CLIENT ) return NET_FAIL;
-	if ( net->version != NET_IPV6 && net->version != NET_IPV4 ) return NET_FAIL;
+	if (!net)
+		return NET_FAIL;
+	if (net->mode != NET_SERVER && net->mode != NET_CLIENT)
+		return NET_FAIL;
+	if (net->version != NET_IPV6 && net->version != NET_IPV4)
+		return NET_FAIL;
 
 	int ret = NET_OK;
 
@@ -421,7 +446,7 @@ net_read_vec ( struct net * net1, struct net * net2, vec_void_t * nets, void * b
 			net = net1;
 		else if ( i == 1 )
 			net = net2;
-		else 
+		else
 			net = nets->data[i-2];
 
 
