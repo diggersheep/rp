@@ -648,7 +648,7 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files, uint1
 				case REQUEST_GET_ACK:
 					handle_get_ack(buffer, count, registered_files, &connected_clients);
 					break;
-				case REQUEST_LIST_ACK:
+				case REQUEST_LIST:
 					handle_list(buffer, registered_files, net);
 					break;
 				default:
