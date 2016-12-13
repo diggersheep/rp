@@ -18,32 +18,35 @@ typedef struct {
 
 /* This structure is a representation of a fragment of chunk on a sending paquet */
 typedef struct __attribute__((__packed__)) {
-	uint8_t  c;    /* must be 60 */
-	uint16_t size; /* 4 -> 1004 */
+	uint8_t  c;         /* must be 60 */
+	uint16_t size;      /**/
 	uint16_t index;     /* fragment index */
 	uint16_t max_index; /* max fragment index */
 	uint8_t  data[0];   /* variable-length raw data. */
 } SegmentChunkFragment;
 
 
+/*  */
 typedef struct __attribute__((__packed__)) {
-	uint8_t  c;    /* arbitrary constant */
-	uint16_t ipv;  /* version of IP address */
-	uint16_t port;
-	uint32_t address;
+	uint8_t  c;       /* arbitrary constant */
+	uint16_t ipv;     /* version of IP address */
+	uint16_t port;    /* network format */
+	uint32_t address; /* network format */
 } SegmentClient4;
 
 typedef struct __attribute__((__packed__)) {
-	uint8_t  c;    /* arbitrary constant */
-	uint16_t ipv;  /* version of IP address */
-	uint16_t port;
-	uint32_t address[4];
+	uint8_t  c;          /* arbitrary constant */
+	uint16_t ipv;        /* version of IP address */
+	uint16_t port;       /* network format */
+	uint32_t address[4]; /* network format */
 } SegmentClient6;
 
+/* Union of client */
 typedef union {
 	SegmentClient4 v4;
 	SegmentClient6 v6;
 } SegmentClient;
+
 
 typedef struct __attribute__((__packed__)) {
 	uint8_t  c;
