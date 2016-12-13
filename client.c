@@ -624,7 +624,6 @@ handle_keep_alive_ack(char* buffer, int size, vec_void_t* registered_files)
 	vec_foreach (registered_files, rf, i) {
 		if (!memcmp(rf->hash_data->digest, r->hash_segment.hash, 32)) {
 			rf->timeout = 60;
-			rf->status = STATUS_KEEP_ALIVE;
 
 			return;
 		}
