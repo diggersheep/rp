@@ -91,9 +91,14 @@ send_get_client(RegisteredFile* rf, vec_void_t* connected_clients)
 			equal = equal && (0 == memcmp(&net->addr.v4.sin_addr, &client->v4.address, client->v4.ipv == 6 ? 4 : 16));
 
 			if (equal) {
-				msg_out("GET-CLIENT", "%s:%d",
-					address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
-					net->current->v6.sin6_port);
+				if ( net->current->v4.sin_family == AF_INET )
+					msg_out("GET-CLIENT", "%s:%d",
+						address_schar(net->current->v4.sin_family, &net->current->v4.sin_addr),
+						net->current->v4.sin_port);
+				else
+					msg_out("GET-CLIENT", "%s:%d",
+						address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
+						net->current->v6.sin6_port);
 
 				unsigned char* hash;
 				vec_foreach (&rf->hash_data->chunkDigests, hash, k) {
@@ -144,9 +149,14 @@ send_list(
 	char address[64];
 	inet_ntop(sin_family, client->v6.address, address, sizeof(address));
 
-	msg_out("LIST", "%s:%d",
-		address_schar(client->v6.ipv == 6 ? AF_INET : AF_INET6, &client->v6.address),
-		ntohs(client->v6.port));
+	if ( client->v4.ipv == 6 )
+		msg_out("LIST", "%s:%d",
+			address_schar(client->v4.ipv == 6 ? AF_INET : AF_INET6, &client->v4.address),
+			ntohs(client->v4.port));
+	else
+		msg_out("LIST", "%s:%d",
+			address_schar(client->v6.ipv == 6 ? AF_INET : AF_INET6, &client->v6.address),
+			ntohs(client->v6.port));
 
 	msg_file_hash_out( hash_data_schar(hash) );
 	// fprintf(stdout, "\033[01;34m %-16s >> \033[01;37m", packet);
@@ -214,9 +224,14 @@ handle_list ( struct net* net, char * buffer, vec_void_t * registered_files , st
 	RegisteredFile * rf;
 	int check = 0;
 
-	msg_in("LIST", "%s:%d",
-		address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
-		ntohs(net->current->v6.sin6_port));
+	if ( net->current->v4.sin_family == AF_INET )
+		msg_in("LIST", "%s:%d",
+			address_schar(net->current->v4.sin_family, &net->current->v4.sin_addr),
+			ntohs(net->current->v4.sin_port));
+	else
+		msg_in("LIST", "%s:%d",
+			address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
+			ntohs(net->current->v6.sin6_port));
 
 	if ( rq->hash.c != 50 )
 	{
@@ -285,9 +300,14 @@ handle_list ( struct net* net, char * buffer, vec_void_t * registered_files , st
 		rp->data[i].index = i;
 	}
 
-	msg_out("LIST/ACK", "%s:%d",
-		address_schar(net->addr.v6.sin6_family, &net->addr.v6.sin6_addr),
-		ntohs(net->addr.v6.sin6_port));
+	if ( net->current->v4.sin_family == AF_INET )
+		msg_out("LIST/ACKAA", "%s:%d",
+			address_schar(net->current->v4.sin_family, &net->current->v4.sin_addr),
+			ntohs(net->current->v4.sin_port));
+	else
+		msg_out("LIST/ACKBB", "%s:%d",
+			address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
+			ntohs(net->current->v6.sin6_port));
 
 	net_write( net, rp, sizeof(*rp) + ((i+1) * sizeof(SegmentChunkHash)) , 0 );
 }
@@ -296,9 +316,14 @@ void handle_list_ack ( struct net* net, char * buffer, vec_void_t * registered_f
 {
 	RequestListAck * rq = (void*) buffer;
 
-	msg_in("LIST/ACK", "%s:%d",
-		address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
-		ntohs(net->current->v6.sin6_port));
+	if ( net->current->v4.sin_family == AF_INET )
+		msg_in("LIST/ACKCC", "%s:%d",
+			address_schar(net->current->v4.sin_family, &net->current->v4.sin_addr),
+			ntohs(net->current->v4.sin_port));
+	else
+		msg_in("LIST/ACKDD", "%s:%d",
+			address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
+			ntohs(net->current->v6.sin6_port));
 
 	if ( rq->file_hash_segment.c != 50 )
 	{
@@ -423,7 +448,10 @@ send_put(struct net* net, struct net* srv, const HashData* hd)
 		net->version == 4 ? 4 : 16
 	);
 
-	msg_out("PUT", "%s:%d", address_schar(saddr->sin_family, &rq->client_segment.v6.address), ntohs(saddr->sin_port));
+	if ( rq->client_segment.v4.ipv == 6 )
+		msg_out("PUT", "%s:%d", address_schar(saddr->sin_family, &rq->client_segment.v4.address), ntohs(saddr->sin_port));
+	else
+		msg_out("PUT", "%s:%d", address_schar(saddr->sin_family, &rq->client_segment.v6.address), ntohs(saddr->sin_port));
 
 	net_write(net, (void*) rq, sizeof(*rq), 0);
 
@@ -607,9 +635,14 @@ handle_put_error(struct net* net, char* buffer, int size, vec_void_t* registered
 
 	vec_foreach (registered_files, rf, i) {
 		if (!memcmp(rf->hash_data->digest, r->hash_segment.hash, 32)) {
-			msg_in("PUT/ERR", "%s:%d",
-				address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
-				ntohs(net->current->v6.sin6_port));
+			if ( net->current->v4.sin_family == AF_INET )
+				msg_in("PUT/ERR", "%s:%d",
+					address_schar(net->current->v4.sin_family, &net->current->v4.sin_addr),
+					ntohs(net->current->v4.sin_port));
+			else
+				msg_in("PUT/ERR", "%s:%d",
+					address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
+					ntohs(net->current->v6.sin6_port));
 
 			rf->timeout = 60;
 			rf->status = STATUS_KEEP_ALIVE;
