@@ -279,8 +279,8 @@ handle_list ( struct net* net, char * buffer, vec_void_t * registered_files , st
 	}
 
 	msg_out("LIST/ACK", "%s:%d",
-		address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
-		ntohs(net->current->v6.sin6_port));
+		address_schar(server->current->v6.sin6_family, &server->current->v6.sin6_addr),
+		ntohs(server->current->v6.sin6_port));
 
 	net_write( server, rp, sizeof(*rp) + ((i+1) * sizeof(SegmentChunkHash)) , 0 );
 }
