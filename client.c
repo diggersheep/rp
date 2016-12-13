@@ -279,10 +279,10 @@ handle_list ( struct net* net, char * buffer, vec_void_t * registered_files , st
 	}
 
 	msg_out("LIST/ACK", "%s:%d",
-		address_schar(server->current->v6.sin6_family, &server->current->v6.sin6_addr),
-		ntohs(server->current->v6.sin6_port));
+		address_schar(net->addr.v6.sin6_family, &net->addr.v6.sin6_addr),
+		ntohs(net->addr.v6.sin6_port));
 
-	net_write( server, rp, sizeof(*rp) + ((i+1) * sizeof(SegmentChunkHash)) , 0 );
+	net_write( net, rp, sizeof(*rp) + ((i+1) * sizeof(SegmentChunkHash)) , 0 );
 }
 
 void handle_list_ack ( struct net* net, char * buffer, vec_void_t * registered_files )
@@ -509,6 +509,7 @@ handle_timeout(struct net* tracker, struct net* server, vec_void_t* registered_f
 	RegisteredFile* rf;
 
 	vec_foreach(registered_files, rf, i) {
+		printf("Timeout of %s:%d.\n", status_string(rf), rf->timeout - 1);
 		if (--rf->timeout == 0) {
 			switch (rf->status) {
 				case STATUS_PUT:
@@ -526,9 +527,11 @@ handle_timeout(struct net* tracker, struct net* server, vec_void_t* registered_f
 					break;
 				case STATUS_LIST:
 					send_list( rf->hash_data->digest, rf, connected_clients );
+					rf->timeout = 10;
 					break;
 				case STATUS_GET_CLIENT:
 					send_get_client(rf, connected_clients);
+					rf->timeout = 1;
 					break;
 			}
 		} else if (rf->status == STATUS_KEEP_ALIVE || rf->status == STATUS_GET) {
@@ -623,7 +626,8 @@ handle_keep_alive_ack(char* buffer, int size, vec_void_t* registered_files)
 
 	vec_foreach (registered_files, rf, i) {
 		if (!memcmp(rf->hash_data->digest, r->hash_segment.hash, 32)) {
-			rf->timeout = 60;
+			if (rf->status == STATUS_KEEP_ALIVE)
+				rf->timeout = 60;
 
 			return;
 		}
@@ -739,8 +743,8 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 	}
 
 	msg_in("GET-CLIENT", "%s:%d",
-		address_schar(net->addr.v6.sin6_family, &net->addr.v6.sin6_addr),
-		ntohs(net->addr.v6.sin6_port));
+		address_schar(net->addr.v4.sin_family, &net->addr.v4.sin_addr),
+		ntohs(net->addr.v4.sin_port));
 
 	vec_foreach (registered_files, rf, i) {
 		if (!memcmp(rf->hash_data->digest, r->chunk_hash_segment.hash, 32)) {
@@ -761,7 +765,6 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 
 			answer->fragment.index = 0;
 
-			/* FIXME: does not wurk, update once handle_list_ack is done */
 			for (int j = 0; j < CHUNK_SIZE / FRAGMENT_SIZE; j++) {
 				int r = fread(answer->fragment.data, 1, FRAGMENT_SIZE, f);
 
@@ -770,8 +773,8 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 				answer->fragment.max_index = answer->fragment.index + r;
 
 				msg_out("GET-CLIENT/ACK", "%s:%d",
-					address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
-					ntohs(net->current->v6.sin6_port));
+					address_schar(net->current->v4.sin_family, &net->current->v4.sin_addr),
+					ntohs(net->current->v4.sin_port));
 
 				net_write(net, answer, sizeof(*answer) + answer->fragment.size, 0);
 
