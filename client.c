@@ -48,6 +48,8 @@ address_schar(int family, void* address)
  * and basically all incoming requests are handled in it.
  */
 
+
+/* send a message of information */
 int
 send_ec_str(struct net* net, const char* str)
 {
@@ -66,6 +68,7 @@ send_ec_str(struct net* net, const char* str)
 	return 0;
 }
 
+/* send a request for a chunk to a peer */
 void
 send_get_client(RegisteredFile* rf, vec_void_t* connected_clients)
 {
@@ -123,6 +126,7 @@ send_get_client(RegisteredFile* rf, vec_void_t* connected_clients)
 	}
 }
 
+/* send a request to a peer to get the list of chunks hash */
 int
 send_list(
 	const unsigned char * hash,
@@ -214,6 +218,8 @@ send_list(
 	return ret;
 }
 
+
+/* catch a list request and send a list ACK (list of chunks) */
 void
 handle_list ( struct net* net, char * buffer, vec_void_t * registered_files , struct net * server )
 {
@@ -312,6 +318,7 @@ handle_list ( struct net* net, char * buffer, vec_void_t * registered_files , st
 	net_write( net, rp, sizeof(*rp) + ((i+1) * sizeof(SegmentChunkHash)) , 0 );
 }
 
+/* catch a lit ACK and set status to get_client (get chunk) */
 void handle_list_ack ( struct net* net, char * buffer, vec_void_t * registered_files )
 {
 	RequestListAck * rq = (void*) buffer;
@@ -383,7 +390,7 @@ void handle_list_ack ( struct net* net, char * buffer, vec_void_t * registered_f
 		msg_chunk_hash_in( hash_data_schar( (unsigned char*) chunk_hash ), rq->data[i].index );
 	}	
 }
-
+/* send a request of chunks to a peer */
 int
 send_get_cli ( struct net* net, const HashData* hd, short index )
 {
@@ -420,6 +427,7 @@ send_get_cli ( struct net* net, const HashData* hd, short index )
 	return err;
 }
 
+/* send an hash file to the tracker */
 int
 send_put(struct net* net, struct net* srv, const HashData* hd)
 {
@@ -459,6 +467,7 @@ send_put(struct net* net, struct net* srv, const HashData* hd)
 }
 
 
+/* send a keep_alive to the tracker ( ~ put) */
 int
 send_keep_alive(struct net* net, const HashData * hd)
 {
@@ -489,6 +498,7 @@ send_keep_alive(struct net* net, const HashData * hd)
 	return err;
 }
 
+/* send a request to get list of peers with a hash file */
 void
 send_get(struct net* tracker, struct net* server, const HashData* hd)
 {
@@ -519,6 +529,7 @@ send_get(struct net* tracker, struct net* server, const HashData* hd)
 	net_write(tracker, (void*) &r, sizeof(r), 0);
 }
 
+/* return status */
 const char*
 status_string(RegisteredFile* rf)
 {
@@ -537,7 +548,7 @@ status_string(RegisteredFile* rf)
 }
 
 
-
+/* send the request who match with the current file status when timeout is over */
 void
 handle_timeout(struct net* tracker, struct net* server, vec_void_t* registered_files, vec_void_t* connected_clients)
 {
@@ -577,6 +588,7 @@ handle_timeout(struct net* tracker, struct net* server, vec_void_t* registered_f
 	}
 }
 
+/* handle the EC message, useful to get some info */
 void
 handle_ec(char* buffer, int size)
 {
@@ -597,6 +609,7 @@ handle_ec(char* buffer, int size)
 	}
 }
 
+/* stopping PUT status and enter to KEEP_ALIVE status */
 void
 handle_put_ack(char* buffer, int size, vec_void_t* registered_files)
 {
@@ -619,6 +632,10 @@ handle_put_ack(char* buffer, int size, vec_void_t* registered_files)
 	}
 }
 
+/* handle some errors, like :
+ *		- recv a KEEP_ALIVE, convert PUT in KEEP_ALIVE
+ *		- catch error, and keep PUT mode
+ */
 void
 handle_put_error(struct net* net, char* buffer, int size, vec_void_t* registered_files)
 {
@@ -651,6 +668,7 @@ handle_put_error(struct net* net, char* buffer, int size, vec_void_t* registered
 	}
 }
 
+/*  */
 void
 handle_keep_alive_ack(char* buffer, int size, vec_void_t* registered_files)
 {
@@ -674,6 +692,7 @@ handle_keep_alive_ack(char* buffer, int size, vec_void_t* registered_files)
 	}
 }
 
+/* handle the problem of timeout, if time if out for keeping alive a hash, then put it again */
 void
 handle_keep_alive_error(struct net* tracker, struct net* server, char* buffer, int size, vec_void_t* registered_files)
 {
@@ -698,6 +717,7 @@ handle_keep_alive_error(struct net* tracker, struct net* server, char* buffer, i
 	}
 }
 
+/* receive the list of peers with a specific hash, send a list */
 void
 handle_get_ack( struct net* net, char* buffer, int count, vec_void_t* registered_files, vec_void_t* connected_clients)
 {
@@ -770,6 +790,7 @@ handle_get_ack( struct net* net, char* buffer, int count, vec_void_t* registered
 	}
 }
 
+/* get the list of hash chunk */
 void
 handle_get_client(struct net* net, char* buffer, int count, vec_void_t* registered_files)
 {
@@ -782,15 +803,6 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 		return;
 	}
 
-/*	if ( net->version == NET_IPV4 )
-		msg_in("GET-CLIENT", "%s:%d",
-			address_schar(net->addr.v4.sin_family, &net->addr.v4.sin_addr),
-			ntohs(net->addr.v4.sin_port));
-	else
-		msg_in("GET-CLIENT", "%s:%d",
-			address_schar(net->addr.v6.sin6_family, &net->addr.v6.sin6_addr),
-			ntohs(net->addr.v6.sin6_port));
-*/
 	if ( net->current->v4.sin_family == AF_INET )
 		msg_in("GET-CLIENT", "%s:%d",
 			address_schar(net->current->v4.sin_family, &net->current->v4.sin_addr),
@@ -851,6 +863,8 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 	return;
 }
 
+
+/* check if the file is complete */
 void
 check_file_completion(RegisteredFile* rf)
 {
@@ -872,6 +886,7 @@ check_file_completion(RegisteredFile* rf)
 	rf->timeout = 1;
 }
 
+/**/
 void
 check_chunk_completion(RegisteredFile* rf, int index, int* fragmentsList)
 {
@@ -909,6 +924,7 @@ check_chunk_completion(RegisteredFile* rf, int index, int* fragmentsList)
 	check_file_completion(rf);
 }
 
+/* receive chunk fragments from another peer and check if chunk is complete*/
 void
 handle_get_client_ack(struct net* net, char* buffer, int count, vec_void_t* registered_files)
 {
@@ -975,13 +991,15 @@ handle_get_client_ack(struct net* net, char* buffer, int count, vec_void_t* regi
 	}
 }
 
+/* loop of all events */
 int
 event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 {
-	char buffer[CHUNK_SIZE * 2];
+	char buffer[CHUNK_SIZE * 2]; /* request buffer */
 
-	vec_void_t connected_clients;
+	vec_void_t connected_clients; /* vector of actual connected clients (struct net *) */
 
+	/* timeout for select */
 	struct timeval t;
 	t.tv_sec  = 0;
 	t.tv_usec = 0;
@@ -996,6 +1014,7 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 		struct net* active_net;
 		int count;
 
+		/* Our unique read with select :) */
 		count = net_read_vec(net, srv, &connected_clients, &active_net, buffer, sizeof(buffer), 0);
 
 		if (count < 0) {
@@ -1039,7 +1058,7 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 				case REQUEST_GET_CLIENT_ACK:
 					handle_get_client_ack(active_net, buffer, count, registered_files);
 					break;
-				default:
+				default: /* bad request */
 					orz("Unknown request type [%d]", type);
 					break;
 			}
@@ -1056,6 +1075,7 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 	return 0;
 }
 
+/* create a file hash and chunks hash of a file */
 void
 put_file(vec_void_t* files, const char* filename)
 {
@@ -1078,6 +1098,7 @@ put_file(vec_void_t* files, const char* filename)
 	msg_file_hash_out( hash_data_schar(rf->hash_data->digest) );
 }
 
+/**/
 void
 get_file(vec_void_t* files, const char* digest, const char* filename)
 {
@@ -1236,12 +1257,14 @@ parse_arg(
 	return 0;
 }
 
+
+/* Main */
 int
 main ( int argc, const char* argv[] )
 {
 	srand(time(NULL));
-	uint16_t tracker_port = 9000;
-	uint16_t peers_port = 9001;
+	uint16_t tracker_port   = 9000;
+	uint16_t peers_port     = 9001;
 	const char* destination = NULL;
 
 	vec_void_t registered_files;
