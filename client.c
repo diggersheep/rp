@@ -91,9 +91,14 @@ send_get_client(RegisteredFile* rf, vec_void_t* connected_clients)
 			equal = equal && (0 == memcmp(&net->addr.v4.sin_addr, &client->v4.address, client->v4.ipv == 6 ? 4 : 16));
 
 			if (equal) {
-				msg_out("GET-CLIENT", "%s:%d",
-					address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
-					net->current->v6.sin6_port);
+				if ( net->current->v4.sin_family == AF_INET )
+					msg_out("GET-CLIENT", "%s:%d",
+						address_schar(net->current->v4.sin_family, &net->current->v4.sin_addr),
+						net->current->v4.sin_port);
+				else
+					msg_out("GET-CLIENT", "%s:%d",
+						address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
+						net->current->v6.sin6_port);
 
 				unsigned char* hash;
 				vec_foreach (&rf->hash_data->chunkDigests, hash, k) {
@@ -144,9 +149,14 @@ send_list(
 	char address[64];
 	inet_ntop(sin_family, client->v6.address, address, sizeof(address));
 
-	msg_out("LIST", "%s:%d",
-		address_schar(client->v6.ipv == 6 ? AF_INET : AF_INET6, &client->v6.address),
-		ntohs(client->v6.port));
+	if ( client->v4.ipv == 6 )
+		msg_out("LIST", "%s:%d",
+			address_schar(client->v4.ipv == 6 ? AF_INET : AF_INET6, &client->v4.address),
+			ntohs(client->v4.port));
+		
+		msg_out("LIST", "%s:%d",
+			address_schar(client->v6.ipv == 6 ? AF_INET : AF_INET6, &client->v6.address),
+			ntohs(client->v6.port));
 
 	msg_file_hash_out( hash_data_schar(hash) );
 	// fprintf(stdout, "\033[01;34m %-16s >> \033[01;37m", packet);

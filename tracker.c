@@ -105,7 +105,7 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 		if (keepalive) {
 			RequestKeepAliveError* answer = buffer;
 
-			orz("> file is unregistered, sending KEEP-ALIVE/ERROR");
+			orz("file is unregistered, sending KEEP-ALIVE/ERROR");
 
 			answer->type = REQUEST_KEEP_ALIVE_ERROR;
 
@@ -216,7 +216,7 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 				memcpy(&client->address, &in->sin_addr, sizeof(client->address));
 
 				
-				msg_out("", "sending peer: %s : %dhandle_ec", address, ntohs(in->sin_port));
+				msg_out("", "sending peer: %s : %d", address, ntohs(in->sin_port));
 
 				answer->count += 1;
 				currentClient += sizeof(SegmentClient4);
