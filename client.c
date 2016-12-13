@@ -112,7 +112,7 @@ send_get_client(RegisteredFile* rf, vec_void_t* connected_clients)
 
 							net_write(net, &r, sizeof(r), 0);
 
-							break;
+							return;
 						}
 					}
 				}
