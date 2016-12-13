@@ -355,7 +355,7 @@ void handle_list_ack ( struct net* net, char * buffer, vec_void_t * registered_f
 		return;
 	}
 
-	rf->timeout = 5;
+	rf->timeout = 1;
 	rf->status  = STATUS_GET_CLIENT;
 
 	for ( int i = 0 ; i < size ; i++ )
@@ -545,7 +545,6 @@ handle_timeout(struct net* tracker, struct net* server, vec_void_t* registered_f
 	RegisteredFile* rf;
 
 	vec_foreach(registered_files, rf, i) {
-		printf("Timeout of %s:%d.\n", status_string(rf), rf->timeout - 1);
 		if (--rf->timeout == 0) {
 			switch (rf->status) {
 				case STATUS_PUT:
@@ -803,8 +802,6 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 				return;
 			}
 
-			printf("Preparing to send fragments.\n");
-
 			fseek(f, r->chunk_hash_segment.index * CHUNK_SIZE, SEEK_SET);
 
 			answer->type = REQUEST_GET_CLIENT_ACK;
@@ -857,7 +854,7 @@ check_file_completion(RegisteredFile* rf)
 		}
 	}
 
-	printf("Whole file downloaded?\n");
+	printf("Whole file downloaded!\n");
 
 	rf->status = STATUS_PUT;
 	rf->timeout = 1;
@@ -927,9 +924,6 @@ handle_get_client_ack(struct net* net, char* buffer, int count, vec_void_t* regi
 					int* fragmentsList = rf->received_fragments.data[i];
 					long offset;
 
-					printf("chunk n°%d: %d -> %d:\n", j,
-						r->fragment.index, r->fragment.max_index);
-
 					fragmentsList[index] = 1;
 
 					if (r->fragment.index == r->fragment.max_index) {
@@ -945,7 +939,6 @@ handle_get_client_ack(struct net* net, char* buffer, int count, vec_void_t* regi
 					offset = j * CHUNK_SIZE;
 					offset += r->fragment.index * FRAGMENT_SIZE;
 
-					printf("index is %ld\n", offset);
 					fseek(file, offset, SEEK_SET);
 
 					fwrite(r->fragment.data, 1, r->fragment.max_index - r->fragment.index, file);
