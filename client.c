@@ -722,8 +722,8 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 	}
 
 	msg_in("GET-CLIENT", "%s:%d",
-		address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
-		ntohs(net->current->v6.sin6_port));
+		address_schar(net->addr.v6.sin6_family, &net->addr.v6.sin6_addr),
+		ntohs(net->addr.v6.sin6_port));
 
 	vec_foreach (registered_files, rf, i) {
 		if (!memcmp(rf->hash_data->digest, r->chunk_hash_segment.hash, 32)) {
@@ -736,19 +736,33 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 				return;
 			}
 
-			fseek(f, r->chunk_hash_segment.index, SEEK_SET);
+			printf("Preparing to send fragments.\n");
 
-			answer->fragment.index = answer->chunk_hash_segment.index;
+			fseek(f, r->chunk_hash_segment.index * CHUNK_SIZE, SEEK_SET);
+
+			answer->type = REQUEST_GET_CLIENT_ACK;
+
+			answer->fragment.index = 0;
 
 			/* FIXME: does not wurk, update once handle_list_ack is done */
 			for (int j = 0; j < CHUNK_SIZE / FRAGMENT_SIZE; j++) {
-				int r = fread(answer->fragment.data, FRAGMENT_SIZE, 1, f);
+				int r = fread(answer->fragment.data, 1, FRAGMENT_SIZE, f);
 
 				answer->fragment.c = 60;
-				answer->fragment.size = r;
-				answer->fragment.index += 1000;
+				answer->fragment.size = r + 4;
+				answer->fragment.max_index = answer->fragment.index + r;
+
+				msg_out("GET-CLIENT/ACK", "%s:%d",
+					address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
+					ntohs(net->current->v6.sin6_port));
 
 				net_write(net, answer, sizeof(*answer) + answer->fragment.size, 0);
+
+				if (r < FRAGMENT_SIZE) {
+					break;
+				}
+
+				answer->fragment.index += r;
 			}
 		}
 	}
@@ -756,6 +770,39 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 	r->type = REQUEST_GET_CLIENT_ACK;
 
 	return;
+}
+
+void
+handle_get_client_ack(struct net* net, char* buffer, int count, vec_void_t* registered_files)
+{
+	RequestGetClientAck* r = (void*) buffer;
+	RegisteredFile* rf;
+	int i;
+
+	msg_in("GET-CLIENT/ACK", "%s:%d",
+		address_schar(net->addr.v6.sin6_family, &net->addr.v6.sin6_addr),
+		ntohs(net->addr.v6.sin6_port));
+
+	printf("%d -> %d:\n",
+		r->fragment.index, r->fragment.max_index);
+
+	vec_foreach (registered_files, rf, i) {
+		/* FIXME: Identify the chunk hash and get the chunk’s index. */
+		if (!memcmp(rf->hash_data->digest, r->chunk_hash_segment.hash, 32)) {
+			FILE* file;
+
+			file = fopen(rf->filename, "r+");
+
+			int e = fseek(file, r->fragment.index, SEEK_SET);
+			printf("%d\n", e);
+
+			fwrite(r->fragment.data, 1, r->fragment.max_index - r->fragment.index, file);
+
+			fclose(file);
+
+			break;
+		}
+	}
 }
 
 int
@@ -776,9 +823,10 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 
 	for (int i = 0;; i++)
 	{
+		struct net* active_net;
 		int count;
 
-		count = net_read_vec(net,srv, &connected_clients, buffer, sizeof(buffer), 0);
+		count = net_read_vec(net, srv, &connected_clients, &active_net, buffer, sizeof(buffer), 0);
 
 		if (count < 0) {
 			orz("something bad happened");
@@ -810,10 +858,16 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 					handle_get_ack(net, buffer, count, registered_files, &connected_clients);
 					break;
 				case REQUEST_LIST:
-					handle_list(net, buffer, registered_files, srv);
+					handle_list(active_net, buffer, registered_files, srv);
 					break;
 				case REQUEST_LIST_ACK:
-					handle_list_ack(net, buffer, registered_files );
+					handle_list_ack(active_net, buffer, registered_files );
+					break;
+				case REQUEST_GET_CLIENT:
+					handle_get_client(active_net, buffer, count, registered_files);
+					break;
+				case REQUEST_GET_CLIENT_ACK:
+					handle_get_client_ack(active_net, buffer, count, registered_files);
 					break;
 				default:
 					orz("Unknown request type [%d]", type);

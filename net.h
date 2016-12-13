@@ -88,7 +88,7 @@ int net_shutdown ( struct net * net );
 ssize_t net_write ( struct net * restrict net, const void * restrict buf, size_t len, int flags );
 int net_read  ( struct net * restrict net,       void * restrict buf, size_t len, int flags );
 
-int net_read_vec ( struct net * net1, struct net * net2, vec_void_t * nets, void * buf, size_t len, int flags );
+int net_read_vec ( struct net * net1, struct net * net2, vec_void_t * nets, struct net** active_net, void * buf, size_t len, int flags );
 
 int net_read2 ( struct net * net1, struct net * net2, void * buf, size_t len, int flags );
 

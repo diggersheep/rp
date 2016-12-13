@@ -393,7 +393,7 @@ net_read2 ( struct net * net1, struct net * net2, void * buf, size_t len, int fl
 
 
 int
-net_read_vec ( struct net * net1, struct net * net2, vec_void_t * nets, void * buf, size_t len, int flags )
+net_read_vec ( struct net * net1, struct net * net2, vec_void_t * nets, struct net** active_net, void * buf, size_t len, int flags )
 {
 	//if ( nets->length == 0 ) return net_read2(net1, net2, buf, len, flags);
 
@@ -445,6 +445,7 @@ net_read_vec ( struct net * net1, struct net * net2, vec_void_t * nets, void * b
 		if ( FD_ISSET( net->fd, &fd_read ) )
 		{
 			ret = recvfrom( net->fd, buf, len, flags, (struct sockaddr *)addr_buf, &net->current_len );
+			*active_net = net;
 			
 			if ( net->current_len == sizeof(struct sockaddr_in6) ||  net->current_len == sizeof(struct sockaddr_in))
 			{
