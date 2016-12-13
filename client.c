@@ -198,8 +198,6 @@ send_list(
 	);
 
 	ret = net_write( peer, rq, sizeof(*rq), 0);
-	send_ec_str( peer, "bonjour");
-
 	if (!already_registered)
 		vec_push(connected_clients, peer);
 
@@ -246,20 +244,29 @@ handle_list ( struct net* net, char * buffer, vec_void_t * registered_files , st
 	}
 	if ( check != 0 )
 	{
-		wtf("LIST> we don't have %s", hash_data_schar(rq->hash.hash));
+		wtf("we don't have %s", hash_data_schar(rq->hash.hash));
 		send_ec_str(server, "No list !");
 		return;
 	}
-
+	
 	char address[64];
 	address[0] = 0x00;
-	inet_ntop(
-		server->version == NET_IPV4 ? AF_INET : AF_INET6,
-		&server->current->v4.sin_addr,
-		address,
-		sizeof(address)
-	);
-
+	
+	if ( server->current->v4.sin_family )
+		inet_ntop(
+			server->current->v4.sin_family,
+			&server->current->v4.sin_addr,
+			address,
+			sizeof(address)
+		);
+	else
+		inet_ntop(
+			server->current->v6.sin6_family,
+			&server->current->v6.sin6_addr,
+			address,
+			sizeof(address)
+		);
+	
 	rf = registered_files->data[i-1];
 
 	rp->type = REQUEST_LIST_ACK;
@@ -323,6 +330,9 @@ void handle_list_ack ( struct net* net, char * buffer, vec_void_t * registered_f
 		return;
 	}
 
+	rf->timeout = 5;
+	rf->status  = STATUS_GET_CLIENT;
+
 	for ( int i = 0 ; i < size ; i++ )
 	{
 		if ( rq->data[i].c != 51 )
@@ -346,14 +356,7 @@ void handle_list_ack ( struct net* net, char * buffer, vec_void_t * registered_f
 		vec_push( &rf->hash_data->chunkDigests, chunk_hash );
 
 		msg_chunk_hash_in( hash_data_schar( (unsigned char*) chunk_hash ), rq->data[i].index );
-//		for ( int j = 0 ; j < 1000 ; j++ )
-//			send_get_client(buffer, );
-	}
-
-	//mode get client
-	rf->timeout = 5;
-	rf->status  = STATUS_GET_CLIENT;
-	
+	}	
 }
 
 int
@@ -476,9 +479,14 @@ send_get(struct net* tracker, struct net* server, const HashData* hd)
 	memcpy(&r.client_segment.v6.address, (void*) &saddr->sin6_addr,
 		server->version == 4 ? 4 : 16);
 
-	msg_out("GET", "%s:%d",
-		address_schar(tracker->addr.v6.sin6_family, &tracker->addr.v6.sin6_addr),
-		ntohs(tracker->addr.v6.sin6_port));
+	if ( tracker->version == NET_IPV4 )
+		msg_out("GET", "%s:%d",
+			address_schar(tracker->addr.v4.sin_family, &tracker->addr.v4.sin_addr),
+			ntohs(tracker->addr.v4.sin_port));
+	else
+		msg_out("GET", "%s:%d",
+			address_schar(tracker->addr.v6.sin6_family, &tracker->addr.v6.sin6_addr),
+			ntohs(tracker->addr.v6.sin6_port));
 
 	net_write(tracker, (void*) &r, sizeof(r), 0);
 }
@@ -527,7 +535,7 @@ handle_timeout(struct net* tracker, struct net* server, vec_void_t* registered_f
 					break;
 				case STATUS_LIST:
 					send_list( rf->hash_data->digest, rf, connected_clients );
-					rf->timeout = 10;
+					rf->timeout = 5;
 					break;
 				case STATUS_GET_CLIENT:
 					send_get_client(rf, connected_clients);
@@ -674,7 +682,7 @@ handle_get_ack( struct net* net, char* buffer, int count, vec_void_t* registered
 		address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
 		ntohs(net->current->v6.sin6_port));
 
-	msg_file_hash_out( hash_data_schar(r->hash_segment.hash) );
+	msg_file_hash_in( hash_data_schar(r->hash_segment.hash) );
 
 	count -= sizeof(*r);
 
@@ -702,7 +710,7 @@ handle_get_ack( struct net* net, char* buffer, int count, vec_void_t* registered
 				count -= segment_size;
 
 				if (count < 0) {
-					orz("broken GET/ACK received and partly handled");
+					orz("Broken GET/ACK received and partly handled");
 					break;
 				}
 
@@ -742,9 +750,14 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 		return;
 	}
 
-	msg_in("GET-CLIENT", "%s:%d",
-		address_schar(net->addr.v4.sin_family, &net->addr.v4.sin_addr),
-		ntohs(net->addr.v4.sin_port));
+	if ( net->version == NET_IPV4 )
+		msg_in("GET-CLIENT", "%s:%d",
+			address_schar(net->addr.v4.sin_family, &net->addr.v4.sin_addr),
+			ntohs(net->addr.v4.sin_port));
+	else
+		msg_in("GET-CLIENT", "%s:%d",
+			address_schar(net->addr.v6.sin6_family, &net->addr.v6.sin6_addr),
+			ntohs(net->addr.v6.sin6_port));
 
 	vec_foreach (registered_files, rf, i) {
 		if (!memcmp(rf->hash_data->digest, r->chunk_hash_segment.hash, 32)) {
@@ -772,9 +785,15 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 				answer->fragment.size = r + 4;
 				answer->fragment.max_index = answer->fragment.index + r;
 
-				msg_out("GET-CLIENT/ACK", "%s:%d",
-					address_schar(net->current->v4.sin_family, &net->current->v4.sin_addr),
-					ntohs(net->current->v4.sin_port));
+				if ( net->current->v4.sin_family == AF_INET )
+					msg_out("GET-CLIENT/ACK", "%s:%d",
+						address_schar(net->current->v4.sin_family, &net->current->v4.sin_addr),
+						ntohs(net->current->v4.sin_port));
+				else
+					msg_out("GET-CLIENT/ACK", "%s:%d",
+						address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
+						ntohs(net->current->v6.sin6_port));
+
 
 				net_write(net, answer, sizeof(*answer) + answer->fragment.size, 0);
 
@@ -855,9 +874,14 @@ handle_get_client_ack(struct net* net, char* buffer, int count, vec_void_t* regi
 	RegisteredFile* rf;
 	int i;
 
-	msg_in("GET-CLIENT/ACK", "%s:%d",
-		address_schar(net->addr.v6.sin6_family, &net->addr.v6.sin6_addr),
-		ntohs(net->addr.v6.sin6_port));
+	if ( net->version == NET_IPV4 )
+		msg_in("GET-CLIENT/ACK", "%s:%d",
+			address_schar(net->addr.v4.sin_family, &net->addr.v4.sin_addr),
+			ntohs(net->addr.v4.sin_port));
+	else
+		msg_in("GET-CLIENT/ACK", "%s:%d",
+			address_schar(net->addr.v6.sin6_family, &net->addr.v6.sin6_addr),
+			ntohs(net->addr.v6.sin6_port));
 
 	printf("%d -> %d:\n",
 		r->fragment.index, r->fragment.max_index);
