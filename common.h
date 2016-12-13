@@ -9,13 +9,14 @@
 
 #include "vec/vec.h"
 
+/* This structure contain chunks hash, file hash and the file ame*/
 typedef struct {
-	char* filename;
+	char* filename; 
 	unsigned char* digest;
-	vec_void_t chunkDigests;
+	vec_void_t chunkDigests; /* of unsigned char[32] */
 } HashData;
 
-
+/* This structure is a representation of a fragment of chunk on a sending paquet */
 typedef struct __attribute__((__packed__)) {
 	uint8_t  c;    /* must be 60 */
 	uint16_t size; /* 4 -> 1004 */
