@@ -3,6 +3,9 @@
 #include <unistd.h>
 #include <stdarg.h>
 
+
+#include "hash.h"
+
 int
 orz(const char *restrict fmt, ...)
 {
@@ -77,7 +80,7 @@ msg_out(const char* packet, const char *restrict fmt, ...)
 	int ret;
 	va_list ap;
 
-	fprintf(stdout, "\033[01;34m %-16s >> \033[01;37m", packet);
+	fprintf(stdout, "\033[01;34m %-16s \033[01;32m>> \033[01;37m", packet);
 
 	va_start(ap, fmt);
 	ret = vfprintf(stdout, fmt, ap);
@@ -88,3 +91,36 @@ msg_out(const char* packet, const char *restrict fmt, ...)
 	return ret;
 }
 
+void
+msg_file_hash_out ( const char * hash )
+{
+	fprintf(stdout,
+		"\033[01;34m    file hash     \033[01;32m>> \033[01;35m%s\033[01;37m\n", hash );
+}
+
+void
+msg_file_hash_in ( const char * hash )
+{
+	fprintf(stdout,
+		"\033[01;34m    file hash     << \033[01;35m%s\033[01;37m\n", hash );
+}
+
+void
+msg_chunk_hash_out ( const char * hash, int index )
+{
+	fprintf(stdout,
+		"\033[01;34m    chunk hash %02d \033[01;32m>> \033[01;35m%s\033[01;37m\n",
+		index,
+		hash
+	);
+}
+
+void
+msg_chunk_hash_in ( const char * hash, int index )
+{
+	fprintf(stdout,
+		"\033[01;34m    chunk hash %02d << \033[01;35m%s\033[01;37m\n",
+		index,
+		hash
+	);
+}

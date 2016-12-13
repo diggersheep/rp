@@ -97,7 +97,7 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 		if (keepalive) {
 			RequestKeepAliveError* answer = buffer;
 
-			orz(" - file is unregistered, sending KEEP-ALIVE/ERROR - ");
+			orz("> file is unregistered, sending KEEP-ALIVE/ERROR");
 
 			answer->type = REQUEST_KEEP_ALIVE_ERROR;
 
@@ -118,7 +118,7 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 
 			vec_push(registered_hashes, rh);
 
-			srsly(" - new file registered -");
+			msg_in("", "new file registered");
 
 			datagram->type = REQUEST_PUT_ACK;
 
@@ -207,7 +207,8 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 
 				memcpy(&client->address, &in->sin_addr, sizeof(client->address));
 
-				srsly(" - sending peer: %s:%d -", address, ntohs(in->sin_port));
+				
+				msg_out("", "sending peer: %s : %dhandle_ec", address, ntohs(in->sin_port));
 
 				answer->count += 1;
 				currentClient += sizeof(SegmentClient4);
@@ -363,6 +364,8 @@ main(int argc, const char** argv)
 
 	net_set_timeout(&net, &timeout);
 
+	msg_out("RUN", "The tracker is running");
+
 	while ((count = net_read(&net, buffer, sizeof(buffer), 0)) >= 0) {
 		if (count == 0) {
 			handle_timeout(&registered_hashes);
@@ -419,8 +422,17 @@ main(int argc, const char** argv)
 				if (1) {
 					RequestEC* r = (void*) buffer;
 
-					write(0, (const char*) r->data, r->size);
-					putchar('\n');
+					if ( r->subtype == 0 )
+					{
+						printf("\033[01;34m EC/MSG           << \033[01;37m");
+						fflush(stdout);
+						write(0, (const char*) r->data, r->size);
+						printf("\n");
+					}
+					else
+					{
+						wtf("Received unhandled EC type.");
+					}
 				}
 
 				break;

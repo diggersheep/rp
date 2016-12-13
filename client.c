@@ -147,7 +147,9 @@ send_list(
 	msg_out("LIST", "%s:%d",
 		address_schar(client->v6.ipv == 6 ? AF_INET : AF_INET6, &client->v6.address),
 		ntohs(client->v6.port));
-	srsly(" - hash: %s - ", hash_data_schar(hash));
+
+	msg_file_hash_out( hash_data_schar(hash) );
+	// fprintf(stdout, "\033[01;34m %-16s >> \033[01;37m", packet);
 
 	struct net* peer = NULL;
 	int already_registered = 0;
@@ -196,6 +198,7 @@ send_list(
 	);
 
 	ret = net_write( peer, rq, sizeof(*rq), 0);
+	send_ec_str( peer, "bonjour");
 
 	if (!already_registered)
 		vec_push(connected_clients, peer);
@@ -283,7 +286,7 @@ void handle_list_ack ( struct net* net, char * buffer, vec_void_t * registered_f
 
 	if ( rq->file_hash_segment.c != 50 )
 	{
-		orz(" - Bad file hash segment ! - ");
+		orz("Bad file hash segment ! - ");
 		return;
 	}
 
@@ -293,12 +296,13 @@ void handle_list_ack ( struct net* net, char * buffer, vec_void_t * registered_f
 	{
 		if ( memcmp( rq->file_hash_segment.hash, rf->hash_data->digest, 32) != 0 )
 		{
-			orz(" - bad file hash %s - ", hash_data_schar(rq->file_hash_segment.hash));
+			orz("bad file hash %s - ", hash_data_schar(rq->file_hash_segment.hash));
 			return;
 		}
 		else
 		{
-			srsly(" - hash: %s - ", hash_data_schar(rq->file_hash_segment.hash));
+
+			msg_file_hash_in( hash_data_schar(rq->file_hash_segment.hash) );
 			break;
 		}
 	}
@@ -306,7 +310,7 @@ void handle_list_ack ( struct net* net, char * buffer, vec_void_t * registered_f
 	short size = rq->size;
 	if ( size <= 0 )
 	{
-		orz("LIST/ACK<< Bad number of file hash (%d)", size);
+		orz("Bad size for file hash (%d)", size);
 		return;
 	}
 
@@ -333,13 +337,10 @@ void handle_list_ack ( struct net* net, char * buffer, vec_void_t * registered_f
 		memcpy( chunk_hash, &rq->data[i].hash, 32);
 		vec_push( &rf->hash_data->chunkDigests, chunk_hash );
 
-//		printf(" >> %d\n", (char)rq->data[i].hash[0] );
-		srsly("   Chunk %02d(%02d) : %s", i, rq->data[i].index, hash_data_schar( (unsigned char*) chunk_hash ));
+		msg_chunk_hash_in( hash_data_schar( (unsigned char*) chunk_hash ), rq->data[i].index );
 //		for ( int j = 0 ; j < 1000 ; j++ )
 //			send_get_client(buffer, );
 	}
-
-
 
 	//mode get client
 	rf->timeout = 5;
@@ -432,9 +433,17 @@ send_keep_alive(struct net* net, const HashData * hd)
 	rq->hash_segment.size = 32;
 	memcpy((void*) rq->hash_segment.hash, hd->digest, sizeof(rq->hash_segment.hash));
 
+
+	unsigned char address[64];
+	memcpy(
+		address,
+		&net->addr.v4.sin_addr,
+		net->version == 4 ? 4 : 16
+	);
+
 	msg_out("KEEP-ALIVE", "%s:%d",
-		address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
-		ntohs(net->current->v6.sin6_port));
+		address_schar(net->addr.v4.sin_family, address),
+		ntohs(net->addr.v6.sin6_port));
 
 	net_write(net, (void*) rq, sizeof(*rq), 0);
 
@@ -533,9 +542,10 @@ handle_ec(char* buffer, int size)
 	}
 
 	if (r->subtype == 0) {
-		char c = '\n';
-		write(1, r->data, r->size);
-		write(1, &c, 1);
+		printf("\033[01;34m EC/MSG           << \033[01;37m");
+		fflush(stdout);
+		write(0, (const char*) r->data, r->size);
+		printf("\n");
 	} else {
 		wtf("Received unhandled EC type.");
 	}
@@ -549,8 +559,7 @@ handle_put_ack(char* buffer, int size, vec_void_t* registered_files)
 	RegisteredFile* rf;
 
 	if ((unsigned) size < sizeof(*r)) {
-		orz("received broken PUT/ACK, datagram too short");
-
+		orz("Received broken PUT/ACK, datagram too short");
 		return;
 	}
 
@@ -572,7 +581,7 @@ handle_put_error(struct net* net, char* buffer, int size, vec_void_t* registered
 	RegisteredFile* rf;
 
 	if ((unsigned) size < sizeof(*r)) {
-		orz("received broken PUT/ERROR, datagram too short");
+		orz("Received broken PUT/ERROR, datagram too short");
 
 		return;
 	}
@@ -599,7 +608,7 @@ handle_keep_alive_ack(char* buffer, int size, vec_void_t* registered_files)
 	RegisteredFile* rf;
 
 	if ((unsigned) size < sizeof(*r)) {
-		orz("received broken KEEP-ALIVE/ACK, datagram too short");
+		orz("Received broken KEEP-ALIVE/ACK, datagram too short");
 
 		return;
 	}
@@ -622,8 +631,7 @@ handle_keep_alive_error(struct net* tracker, struct net* server, char* buffer, i
 	RegisteredFile* rf;
 
 	if ((unsigned) size < sizeof(*r)) {
-		orz("received broken KEEP-ALIVE/ERROR, datagram too short");
-
+		orz("Received broken KEEP-ALIVE/ERROR, datagram too short");
 		return;
 	}
 
@@ -647,14 +655,15 @@ handle_get_ack( struct net* net, char* buffer, int count, vec_void_t* registered
 	RegisteredFile* rf;
 
 	if ((unsigned) count < sizeof(*r)) {
-		orz("received broken GET/ACK, datagram too short");
+		orz("Received broken GET/ACK, datagram too short");
 		return;
 	}
 
 	msg_out("GET/ACK", "%s:%d",
 		address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
 		ntohs(net->current->v6.sin6_port));
-	srsly(" - hash: %s - ", hash_data_schar(r->hash_segment.hash));
+
+	msg_file_hash_out( hash_data_schar(r->hash_segment.hash) );
 
 	count -= sizeof(*r);
 
@@ -700,7 +709,6 @@ handle_get_ack( struct net* net, char* buffer, int count, vec_void_t* registered
 					(void*) &s->v4.address, address, sizeof(address)
 				);
 
-				srsly(" - new peer: %s:%d - ", address, ntohs(s->v4.port));
 			}
 
 			rf->timeout = 30;
@@ -982,8 +990,10 @@ put_file(vec_void_t* files, const char* filename)
 
 	vec_push(files, rf);
 
-	srsly("Preparing to send file > %s", filename);
-	printf("  %s\n", hash_data_schar(rf->hash_data->digest));
+
+	msg_out( "PROCESSING", "Preparing to send file >");
+	msg_out( "PROCESSING", "%s", filename );
+	msg_file_hash_out( hash_data_schar(rf->hash_data->digest) );
 }
 
 void
@@ -1019,7 +1029,8 @@ get_file(vec_void_t* files, const char* digest, const char* filename)
 
 	vec_push(files, rf);
 
-	srsly("Preparing to receive file > %s", filename);
+	/* Maybe ? */
+	msg_in("GET", "Preparing to receive file > %s", filename);
 }
 
 /**
