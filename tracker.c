@@ -69,7 +69,7 @@ register_hash(unsigned char* hash, struct net* net, vec_void_t* registered_hashe
 		}
 	}
 
-	return 1;
+	return 0;
 }
 
 void
