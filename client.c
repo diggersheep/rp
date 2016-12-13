@@ -314,12 +314,12 @@ void handle_list_ack ( struct net* net, char * buffer, vec_void_t * registered_f
 	{
 		if ( rq->data[i].c != 51 )
 		{
-			orz("ghjk");
+			orz("Broken segment.");
 			return;
 		}
 		if ( rq->data[i].size != 32 )
 		{
-			orz("bad");
+			orz("Broken segment.");
 			return;
 		}
 		//check for segment
@@ -332,7 +332,7 @@ void handle_list_ack ( struct net* net, char * buffer, vec_void_t * registered_f
 		vec_push( &rf->hash_data->chunkDigests, chunk_hash );
 
 //		printf(" >> %d\n", (char)rq->data[i].hash[0] );
-		srsly("   Chunk %02d(%02d) : %s \n", i, rq->data[i].index, hash_data_schar( (unsigned char*) chunk_hash ));
+		srsly("   Chunk %02d(%02d) : %s", i, rq->data[i].index, hash_data_schar( (unsigned char*) chunk_hash ));
 //		for ( int j = 0 ; j < 1000 ; j++ )
 //			send_get_client(buffer, );
 	}
