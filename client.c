@@ -335,6 +335,7 @@ void handle_list_ack ( struct net* net, char * buffer, vec_void_t * registered_f
 		}
 		//check for segment
 		int * check_chunk = malloc(sizeof(int) * 1000);
+		memset(check_chunk, 0, 1000);
 		vec_push( &rf->received_fragments, check_chunk );
 
 		//chunk hash
@@ -622,7 +623,6 @@ handle_keep_alive_ack(char* buffer, int size, vec_void_t* registered_files)
 	vec_foreach (registered_files, rf, i) {
 		if (!memcmp(rf->hash_data->digest, r->hash_segment.hash, 32)) {
 			rf->timeout = 60;
-			rf->status = STATUS_KEEP_ALIVE;
 
 			return;
 		}
@@ -878,6 +878,8 @@ handle_get_client_ack(struct net* net, char* buffer, int count, vec_void_t* regi
 					}
 
 					file = fopen(rf->filename, "r+");
+					if (file == NULL)
+						file = fopen(rf->filename, "w");
 
 					fseek(file, i * CHUNK_SIZE + r->fragment.index, SEEK_SET);
 
