@@ -235,7 +235,7 @@ handle_list ( struct net* net, char * buffer, vec_void_t * registered_files , st
 
 	if ( rq->hash.c != 50 )
 	{
-		wtf("LIST> Wrong file hash %s", hash_data_schar(rq->hash.hash));
+		wtf("Wrong file hash %s", hash_data_schar(rq->hash.hash));
 		send_ec_str(server, "Wrong file Hash !");
 
 		return;
@@ -301,11 +301,11 @@ handle_list ( struct net* net, char * buffer, vec_void_t * registered_files , st
 	}
 
 	if ( net->current->v4.sin_family == AF_INET )
-		msg_out("LIST/ACKAA", "%s:%d",
+		msg_out("LIST/ACK", "%s:%d",
 			address_schar(net->current->v4.sin_family, &net->current->v4.sin_addr),
 			ntohs(net->current->v4.sin_port));
 	else
-		msg_out("LIST/ACKBB", "%s:%d",
+		msg_out("LIST/ACK", "%s:%d",
 			address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
 			ntohs(net->current->v6.sin6_port));
 
@@ -317,11 +317,11 @@ void handle_list_ack ( struct net* net, char * buffer, vec_void_t * registered_f
 	RequestListAck * rq = (void*) buffer;
 
 	if ( net->current->v4.sin_family == AF_INET )
-		msg_in("LIST/ACKCC", "%s:%d",
+		msg_in("LIST/ACK", "%s:%d",
 			address_schar(net->current->v4.sin_family, &net->current->v4.sin_addr),
 			ntohs(net->current->v4.sin_port));
 	else
-		msg_in("LIST/ACKDD", "%s:%d",
+		msg_in("LIST/ACK", "%s:%d",
 			address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
 			ntohs(net->current->v6.sin6_port));
 
@@ -710,7 +710,7 @@ handle_get_ack( struct net* net, char* buffer, int count, vec_void_t* registered
 		return;
 	}
 
-	msg_out("GET/ACK", "%s:%d",
+	msg_in("GET/ACK", "%s:%d",
 		address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
 		ntohs(net->current->v6.sin6_port));
 
@@ -778,11 +778,11 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 	int i;
 
 	if ((unsigned) count < sizeof(*r)) {
-		orz(" - received broken GET-CLIENT - ");
+		orz("Received broken GET-CLIENT");
 		return;
 	}
 
-	if ( net->version == NET_IPV4 )
+/*	if ( net->version == NET_IPV4 )
 		msg_in("GET-CLIENT", "%s:%d",
 			address_schar(net->addr.v4.sin_family, &net->addr.v4.sin_addr),
 			ntohs(net->addr.v4.sin_port));
@@ -790,6 +790,15 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 		msg_in("GET-CLIENT", "%s:%d",
 			address_schar(net->addr.v6.sin6_family, &net->addr.v6.sin6_addr),
 			ntohs(net->addr.v6.sin6_port));
+*/
+	if ( net->current->v4.sin_family == AF_INET )
+		msg_in("GET-CLIENT", "%s:%d",
+			address_schar(net->current->v4.sin_family, &net->current->v4.sin_addr),
+			ntohs(net->current->v4.sin_port));
+	else
+		msg_in("GET-CLIENT", "%s:%d",
+			address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
+			ntohs(net->current->v6.sin6_port));
 
 	vec_foreach (registered_files, rf, i) {
 		if (!memcmp(rf->hash_data->digest, r->file_hash_segment.hash, 32)) {
@@ -857,7 +866,7 @@ check_file_completion(RegisteredFile* rf)
 		}
 	}
 
-	printf("Whole file downloaded!\n");
+	msg_out("FILE/OK", "Whole file downloaded!");
 
 	rf->status = STATUS_PUT;
 	rf->timeout = 1;
@@ -884,7 +893,7 @@ check_chunk_completion(RegisteredFile* rf, int index, int* fragmentsList)
 	sha256_hash(hash, (void*) buffer, size_read);
 
 	if (!memcmp(hash, rf->hash_data->chunkDigests.data[index], 32)) {
-		printf("Got a complete, valid chunk.\n");
+		msg_out("FILE/OK", "Got a complete, valid chunk.");
 	} else {
 		orz("Chunk is broken, marking for re-download.");
 		orz("   received %s", hash_data_schar(hash));
