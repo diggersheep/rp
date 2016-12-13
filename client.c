@@ -196,6 +196,7 @@ send_list(
 	);
 
 	ret = net_write( peer, rq, sizeof(*rq), 0);
+	send_ec_str( peer, "bonjour");
 
 	if (!already_registered)
 		vec_push(connected_clients, peer);
@@ -338,8 +339,6 @@ void handle_list_ack ( struct net* net, char * buffer, vec_void_t * registered_f
 //		for ( int j = 0 ; j < 1000 ; j++ )
 //			send_get_client(buffer, );
 	}
-
-
 
 	//mode get client
 	rf->timeout = 5;
@@ -541,9 +540,10 @@ handle_ec(char* buffer, int size)
 	}
 
 	if (r->subtype == 0) {
-		char c = '\n';
-		write(1, r->data, r->size);
-		write(1, &c, 1);
+		printf("\033[01;34m EC/MSG           << \033[01;37m");
+		fflush(stdout);
+		write(0, (const char*) r->data, r->size);
+		printf("\n");
 	} else {
 		wtf("Received unhandled EC type.");
 	}
@@ -707,7 +707,6 @@ handle_get_ack( struct net* net, char* buffer, int count, vec_void_t* registered
 					(void*) &s->v4.address, address, sizeof(address)
 				);
 
-				//srsly("\033[01;34m| new peer      >> \033[01;35m%s:%d\033[01;34m", address, ntohs(s->v4.port));
 			}
 
 			rf->timeout = 30;
@@ -856,8 +855,10 @@ put_file(vec_void_t* files, const char* filename)
 
 	vec_push(files, rf);
 
-	srsly("Preparing to send file > %s", filename);
-	printf("  %s\n", hash_data_schar(rf->hash_data->digest));
+
+	msg_out( "PROCESSING", "Preparing to send file >");
+	msg_out( "PROCESSING", "%s", filename );
+	msg_file_hash_out( hash_data_schar(rf->hash_data->digest) );
 }
 
 void
@@ -893,7 +894,8 @@ get_file(vec_void_t* files, const char* digest, const char* filename)
 
 	vec_push(files, rf);
 
-	srsly("Preparing to receive file > %s", filename);
+	/* Maybe ? */
+	msg_in("GET", "Preparing to receive file > %s", filename);
 }
 
 /**
