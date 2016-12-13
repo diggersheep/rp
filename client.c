@@ -142,7 +142,7 @@ send_list(
 	char address[64];
 	inet_ntop(sin_family, client->v6.address, address, sizeof(address));
 
-	msg_in("LIST", "%s:%d",
+	msg_out("LIST", "%s:%d",
 		address_schar(client->v6.ipv == 6 ? AF_INET : AF_INET6, &client->v6.address),
 		ntohs(client->v6.port));
 	srsly(" - hash: %s - ", hash_data_schar(hash));
@@ -721,13 +721,13 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 		return;
 	}
 
+	msg_in("GET-CLIENT", "%s:%d",
+		address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
+		ntohs(net->current->v6.sin6_port));
+
 	vec_foreach (registered_files, rf, i) {
 		if (!memcmp(rf->hash_data->digest, r->chunk_hash_segment.hash, 32)) {
 			RequestGetClientAck* answer = (void*) buffer;
-
-			msg_in("GET-CLIENT", "%s:%d",
-				address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
-				ntohs(net->current->v6.sin6_port));
 
 			FILE* f = fopen(rf->filename, "r");
 
@@ -848,6 +848,7 @@ put_file(vec_void_t* files, const char* filename)
 	vec_push(files, rf);
 
 	srsly("Preparing to send file > %s", filename);
+	printf("  %s\n", hash_data_schar(rf->hash_data->digest));
 }
 
 void
