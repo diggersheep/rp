@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <stdarg.h>
 
 int
 orz(const char *restrict fmt, ...)
