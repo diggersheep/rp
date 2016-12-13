@@ -760,7 +760,7 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 			ntohs(net->addr.v6.sin6_port));
 
 	vec_foreach (registered_files, rf, i) {
-		if (!memcmp(rf->hash_data->digest, r->chunk_hash_segment.hash, 32)) {
+		if (!memcmp(rf->hash_data->digest, r->file_hash_segment.hash, 32)) {
 			RequestGetClientAck* answer = (void*) buffer;
 
 			FILE* f = fopen(rf->filename, "r");
@@ -777,13 +777,14 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 			answer->type = REQUEST_GET_CLIENT_ACK;
 
 			answer->fragment.index = 0;
+			answer->fragment.max_index = 0;
 
 			for (int j = 0; j < CHUNK_SIZE / FRAGMENT_SIZE; j++) {
 				int r = fread(answer->fragment.data, 1, FRAGMENT_SIZE, f);
 
 				answer->fragment.c = 60;
 				answer->fragment.size = r + 4;
-				answer->fragment.max_index = answer->fragment.index + r;
+				answer->fragment.max_index += r == FRAGMENT_SIZE ? 1 : 0 ;
 
 				if ( net->current->v4.sin_family == AF_INET )
 					msg_out("GET-CLIENT/ACK", "%s:%d",
@@ -794,19 +795,16 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 						address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
 						ntohs(net->current->v6.sin6_port));
 
-
 				net_write(net, answer, sizeof(*answer) + answer->fragment.size, 0);
 
 				if (r < FRAGMENT_SIZE) {
 					break;
 				}
 
-				answer->fragment.index += r;
+				answer->fragment.index += 1;
 			}
 		}
 	}
-
-	r->type = REQUEST_GET_CLIENT_ACK;
 
 	return;
 }
@@ -883,9 +881,6 @@ handle_get_client_ack(struct net* net, char* buffer, int count, vec_void_t* regi
 			address_schar(net->addr.v6.sin6_family, &net->addr.v6.sin6_addr),
 			ntohs(net->addr.v6.sin6_port));
 
-	printf("%d -> %d:\n",
-		r->fragment.index, r->fragment.max_index);
-
 	vec_foreach (registered_files, rf, i) {
 		if (!memcmp(rf->hash_data->digest, r->file_hash_segment.hash, 32)) {
 			unsigned char* hash;
@@ -895,11 +890,16 @@ handle_get_client_ack(struct net* net, char* buffer, int count, vec_void_t* regi
 			vec_foreach (&rf->hash_data->chunkDigests, hash, j) {
 				if (!memcmp(hash, r->chunk_hash_segment.hash, 32)) {
 					FILE* file;
-					int index = r->fragment.index / FRAGMENT_SIZE;
+					int index = r->fragment.index;
 					int* fragmentsList = rf->received_fragments.data[i];
+					long offset;
+
+					printf("chunk n°%d: %d -> %d:\n", j,
+						r->fragment.index, r->fragment.max_index);
 
 					fragmentsList[index] = 1;
-					if (r->fragment.max_index - r->fragment.index < FRAGMENT_SIZE) {
+
+					if (r->fragment.index == r->fragment.max_index) {
 						for (int k = index + 1; k < 1000; k++) {
 							fragmentsList[k] = 1;
 						}
@@ -909,13 +909,17 @@ handle_get_client_ack(struct net* net, char* buffer, int count, vec_void_t* regi
 					if (file == NULL)
 						file = fopen(rf->filename, "w");
 
-					fseek(file, i * CHUNK_SIZE + r->fragment.index, SEEK_SET);
+					offset = j * CHUNK_SIZE;
+					offset += r->fragment.index * FRAGMENT_SIZE;
+
+					printf("index is %ld\n", offset);
+					fseek(file, offset, SEEK_SET);
 
 					fwrite(r->fragment.data, 1, r->fragment.max_index - r->fragment.index, file);
 
 					fclose(file);
 
-					check_chunk_completion(rf, i, fragmentsList);
+					check_chunk_completion(rf, j, fragmentsList);
 
 					foundChunk = 1;
 					break;
