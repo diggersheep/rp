@@ -4,6 +4,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "sha256/sha256.h"
+
 #include "net.h"
 #include "common.h"
 #include "hash.h"
@@ -773,6 +775,62 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 }
 
 void
+check_file_completion(RegisteredFile* rf)
+{
+	unsigned char* hash;
+	int i;
+
+	vec_foreach (&rf->hash_data->chunkDigests, hash, i) {
+		int* list = rf->received_fragments.data[i];
+
+		for (int k = 0; k < 1000; k++) {
+			if (list[k] == 0)
+				return;
+		}
+	}
+
+	printf("Whole file downloaded?\n");
+
+	rf->status = STATUS_PUT;
+	rf->timeout = 1;
+}
+
+void
+check_chunk_completion(RegisteredFile* rf, int index, int* fragmentsList)
+{
+	int i;
+	char buffer[CHUNK_SIZE];
+	unsigned char hash[32];
+	size_t size_read;
+
+	for (i = 0; i < 1000; i++)
+		if (fragmentsList[i] == 0)
+			return;
+
+	FILE* file = fopen(rf->filename, "r");
+
+	fseek(file, index * CHUNK_SIZE, SEEK_SET);
+	size_read = fread(buffer, 1, sizeof(buffer), file);
+	fclose(file);
+
+	sha256_hash(hash, (void*) buffer, size_read);
+
+	if (!memcmp(hash, rf->hash_data->chunkDigests.data[index], 32)) {
+		printf("Got a complete, valid chunk.\n");
+	} else {
+		orz("Chunk is broken, marking for re-download.");
+
+		for (int k = 0; k < 1000; k++) {
+			fragmentsList[k] = 0;
+		}
+
+		return;
+	}
+
+	check_file_completion(rf);
+}
+
+void
 handle_get_client_ack(struct net* net, char* buffer, int count, vec_void_t* registered_files)
 {
 	RequestGetClientAck* r = (void*) buffer;
@@ -787,18 +845,41 @@ handle_get_client_ack(struct net* net, char* buffer, int count, vec_void_t* regi
 		r->fragment.index, r->fragment.max_index);
 
 	vec_foreach (registered_files, rf, i) {
-		/* FIXME: Identify the chunk hash and get the chunk’s index. */
-		if (!memcmp(rf->hash_data->digest, r->chunk_hash_segment.hash, 32)) {
-			FILE* file;
+		if (!memcmp(rf->hash_data->digest, r->file_hash_segment.hash, 32)) {
+			unsigned char* hash;
+			int j;
+			int foundChunk = 0;
 
-			file = fopen(rf->filename, "r+");
+			vec_foreach (&rf->hash_data->chunkDigests, hash, j) {
+				if (!memcmp(hash, r->chunk_hash_segment.hash, 32)) {
+					FILE* file;
+					int index = r->fragment.index / FRAGMENT_SIZE;
+					int* fragmentsList = rf->received_fragments.data[i];
 
-			int e = fseek(file, r->fragment.index, SEEK_SET);
-			printf("%d\n", e);
+					fragmentsList[index] = 1;
+					if (r->fragment.max_index - r->fragment.index < FRAGMENT_SIZE) {
+						for (int k = index + 1; k < 1000; k++) {
+							fragmentsList[k] = 1;
+						}
+					}
 
-			fwrite(r->fragment.data, 1, r->fragment.max_index - r->fragment.index, file);
+					file = fopen(rf->filename, "r+");
 
-			fclose(file);
+					fseek(file, i * CHUNK_SIZE + r->fragment.index, SEEK_SET);
+
+					fwrite(r->fragment.data, 1, r->fragment.max_index - r->fragment.index, file);
+
+					fclose(file);
+
+					check_chunk_completion(rf, i, fragmentsList);
+
+					foundChunk = 1;
+					break;
+				}
+			}
+
+			if (!foundChunk)
+				orz("Received broken fragment?");
 
 			break;
 		}
