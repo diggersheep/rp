@@ -198,8 +198,6 @@ send_list(
 	);
 
 	ret = net_write( peer, rq, sizeof(*rq), 0);
-	send_ec_str( peer, "bonjour");
-
 	if (!already_registered)
 		vec_push(connected_clients, peer);
 
@@ -525,6 +523,7 @@ handle_timeout(struct net* tracker, struct net* server, vec_void_t* registered_f
 					break;
 				case STATUS_LIST:
 					send_list( rf->hash_data->digest, rf, connected_clients );
+					rf->timeout = 1;
 					break;
 				case STATUS_GET_CLIENT:
 					send_get_client(rf, connected_clients);
@@ -670,7 +669,7 @@ handle_get_ack( struct net* net, char* buffer, int count, vec_void_t* registered
 		address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
 		ntohs(net->current->v6.sin6_port));
 
-	msg_file_hash_out( hash_data_schar(r->hash_segment.hash) );
+	msg_file_hash_in( hash_data_schar(r->hash_segment.hash) );
 
 	count -= sizeof(*r);
 
@@ -698,7 +697,7 @@ handle_get_ack( struct net* net, char* buffer, int count, vec_void_t* registered
 				count -= segment_size;
 
 				if (count < 0) {
-					orz("broken GET/ACK received and partly handled");
+					orz("Broken GET/ACK received and partly handled");
 					break;
 				}
 
