@@ -811,6 +811,7 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 
 			for (int j = 0; j < CHUNK_SIZE / FRAGMENT_SIZE; j++) {
 				int r = fread(answer->fragment.data, 1, FRAGMENT_SIZE, f);
+				fclose(f);
 
 				answer->fragment.c = 60;
 				answer->fragment.size = r + 4;
@@ -884,6 +885,8 @@ check_chunk_completion(RegisteredFile* rf, int index, int* fragmentsList)
 		printf("Got a complete, valid chunk.\n");
 	} else {
 		orz("Chunk is broken, marking for re-download.");
+		orz("   received %s", hash_data_schar(hash));
+		orz("should have %s", hash_data_schar(rf->hash_data->chunkDigests.data[index]));
 
 		for (int k = 0; k < 1000; k++) {
 			fragmentsList[k] = 0;
@@ -933,15 +936,17 @@ handle_get_client_ack(struct net* net, char* buffer, int count, vec_void_t* regi
 					}
 
 					file = fopen(rf->filename, "r+");
-					if (file == NULL)
+					if (file == NULL) {
+						perror("fopen()");
 						file = fopen(rf->filename, "w");
+					}
 
 					offset = j * CHUNK_SIZE;
 					offset += r->fragment.index * FRAGMENT_SIZE;
 
 					fseek(file, offset, SEEK_SET);
 
-					fwrite(r->fragment.data, 1, r->fragment.max_index - r->fragment.index, file);
+					fwrite(r->fragment.data, 1, r->fragment.size - 4, file);
 
 					fclose(file);
 
