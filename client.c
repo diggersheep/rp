@@ -939,7 +939,6 @@ handle_get_client_ack(struct net* net, char* buffer, int count, vec_void_t* regi
 
 					file = fopen(rf->filename, "r+");
 					if (file == NULL) {
-						perror("fopen()");
 						file = fopen(rf->filename, "w");
 					}
 
