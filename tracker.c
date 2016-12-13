@@ -251,7 +251,7 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 
 	net_write(net, answer, datagram_size, 0);
 
-	register_hash(datagram->hash_segment.hash, net, registered_hashes, 0, 0);
+	register_hash(datagram->hash_segment.hash, net, registered_hashes, net->current->v4.sin_port, 0);
 }
 
 void
