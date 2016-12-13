@@ -45,6 +45,33 @@ check_segment_client(SegmentClient* s)
 	return true;
 }
 
+int
+register_hash(unsigned char* hash, struct net* net, vec_void_t* registered_hashes, int port, int keepalive)
+{
+	int i;
+	RegisteredHash* rh;
+
+	vec_foreach (registered_hashes, rh, i) {
+		struct sockaddr_in* saddr = (void*) &rh->client;
+		int sameHash = memcmp(rh->hash, hash, sizeof(rh->hash)) == 0;
+		int sameHost = (saddr->sin_family == net->current->v4.sin_family) &&
+			(0 == memcmp(&saddr->sin_addr, &net->current->v4.sin_addr, saddr->sin_family == AF_INET ? 4 : 16));
+
+		if (!keepalive)
+			sameHost = sameHost && (saddr->sin_port == port);
+
+		if (sameHash && sameHost) {
+			rh->time_to_live = 60;
+
+			return 1;
+
+			break;
+		}
+	}
+
+	return 1;
+}
+
 void
 handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int keepalive)
 {
@@ -72,26 +99,7 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 		address, ntohs(net->current->v4.sin_port)
 	);
 
-	int i;
-	RegisteredHash* rh;
-
-	vec_foreach (registered_hashes, rh, i) {
-		struct sockaddr_in* saddr = (void*) &rh->client;
-		int sameHash = memcmp(rh->hash, datagram->hash_segment.hash, sizeof(rh->hash)) == 0;
-		int sameHost = (saddr->sin_family == net->current->v4.sin_family) &&
-			(0 == memcmp(&saddr->sin_addr, &net->current->v4.sin_addr, saddr->sin_family == AF_INET ? 4 : 16));
-
-		if (!keepalive)
-			sameHost = sameHost && (saddr->sin_port == datagram->client_segment.v4.port);
-
-		if (sameHash && sameHost) {
-			hashExists = 1;
-
-			rh->time_to_live = 60;
-
-			break;
-		}
-	}
+	hashExists = register_hash(datagram->hash_segment.hash, net, registered_hashes, datagram->client_segment.v4.port, keepalive);
 
 	if (!hashExists) {
 		if (keepalive) {
@@ -242,6 +250,8 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 	);
 
 	net_write(net, answer, datagram_size, 0);
+
+	register_hash(datagram->hash_segment.hash, net, registered_hashes, 0, 0);
 }
 
 void

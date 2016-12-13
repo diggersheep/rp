@@ -230,9 +230,18 @@ handle_list ( struct net* net, char * buffer, vec_void_t * registered_files , st
 
 	vec_foreach ( registered_files, rf, i)
 	{
-		for ( int j = 0 ; j < 32 ; j++ )
-		{
-			check = memcmp( rf->hash_data->digest, rq->hash.hash, 32 );	
+		check = memcmp( rf->hash_data->digest, rq->hash.hash, 32 );	
+
+		if (check) {
+			check = rf->received_fragments.length > 0;
+
+			if (check) {
+				break;
+			} else {
+				send_ec_str(server, "Don’t have it! Nico Nico-nii again some other time.");
+
+				return;
+			}
 		}
 	}
 	if ( check != 0 )
@@ -313,8 +322,6 @@ void handle_list_ack ( struct net* net, char * buffer, vec_void_t * registered_f
 		orz("Bad size for file hash (%d)", size);
 		return;
 	}
-
-	vec_init( &rf->received_fragments );
 
 	for ( int i = 0 ; i < size ; i++ )
 	{
@@ -523,7 +530,7 @@ handle_timeout(struct net* tracker, struct net* server, vec_void_t* registered_f
 					send_get_client(rf, connected_clients);
 					break;
 			}
-		} else if (rf->status == STATUS_KEEP_ALIVE) {
+		} else if (rf->status == STATUS_KEEP_ALIVE || rf->status == STATUS_GET) {
 			if (rf->timeout <= 30 && rf->timeout % 5 == 0) {
 				send_keep_alive(tracker, rf->hash_data);
 			}
@@ -988,8 +995,9 @@ put_file(vec_void_t* files, const char* filename)
 
 	rf->hash_data = hash_data_new(filename);
 
-	vec_push(files, rf);
+	vec_init(&rf->received_fragments);
 
+	vec_push(files, rf);
 
 	msg_out( "PROCESSING", "Preparing to send file >");
 	msg_out( "PROCESSING", "%s", filename );
@@ -1026,6 +1034,7 @@ get_file(vec_void_t* files, const char* digest, const char* filename)
 	vec_init(&rf->hash_data->chunkDigests);
 
 	vec_init(&rf->related_clients);
+	vec_init(&rf->received_fragments);
 
 	vec_push(files, rf);
 
