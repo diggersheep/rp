@@ -222,8 +222,8 @@ handle_list ( struct net* net, char * buffer, vec_void_t * registered_files , st
 
 	if ( rq->hash.c != 50 )
 	{
-		wtf("LIST> bad file hash %s", hash_data_schar(rq->hash.hash));
-		send_ec_str(server, "Bad file Hash !");
+		wtf("LIST> Wrong file hash %s", hash_data_schar(rq->hash.hash));
+		send_ec_str(server, "Wrong file Hash !");
 
 		return;
 	}
