@@ -811,7 +811,6 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 
 			for (int j = 0; j < CHUNK_SIZE / FRAGMENT_SIZE; j++) {
 				int r = fread(answer->fragment.data, 1, FRAGMENT_SIZE, f);
-				fclose(f);
 
 				answer->fragment.c = 60;
 				answer->fragment.size = r + 4;
@@ -834,6 +833,9 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 
 				answer->fragment.index += 1;
 			}
+
+			fclose(f);
+			break;
 		}
 	}
 
