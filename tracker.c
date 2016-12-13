@@ -51,17 +51,6 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 	RequestPut* datagram = (void*) buffer;
 	int hashExists = 0;
 
-	if (1) {
-		printf("<");
-		print_hash(datagram->hash_segment.hash);
-		printf(">");
-
-		struct sockaddr_in* in = (void*) net->current;
-		char address[INET6_ADDRSTRLEN];
-		inet_ntop(net->current->v4.sin_family, &in->sin_addr, address, sizeof(address));
-		printf(" from %s\n", address);
-	}
-
 	int r = check_segment_file_hash(&datagram->hash_segment);
 
 	if (!keepalive)
@@ -72,6 +61,16 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 
 		return;
 	}
+
+	struct sockaddr_in* in = (void*) net->current;
+	char address[INET6_ADDRSTRLEN];
+	inet_ntop(net->current->v4.sin_family, &in->sin_addr, address, sizeof(address));
+
+	msg_in(
+		keepalive ? "KEEP-ALIVE" : "PUT",
+		"%s:%d",
+		address, ntohs(net->current->v4.sin_port)
+	);
 
 	int i;
 	RegisteredHash* rh;
@@ -102,6 +101,10 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 
 			answer->type = REQUEST_KEEP_ALIVE_ERROR;
 
+			msg_out(
+				"KEEP-ALIVE/ERR", "%s:%d", address, ntohs(net->current->v4.sin_port)
+			);
+
 			net_write(net, buffer, sizeof(*answer), 0);
 		} else {
 			RegisteredHash* rh;
@@ -119,6 +122,10 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 
 			datagram->type = REQUEST_PUT_ACK;
 
+			msg_out(
+				"PUT/ACK", "%s:%d", address, ntohs(net->current->v4.sin_port)
+			);
+
 			/* PUT and PUT/ACK are the same exact datagrams. */
 			net_write(net, buffer, sizeof(RequestPut), 0);
 		}
@@ -126,12 +133,18 @@ handle_put(struct net* net, void* buffer, vec_void_t* registered_hashes, int kee
 		if (keepalive) {
 			datagram->type = REQUEST_KEEP_ALIVE_ACK;
 
+			msg_out(
+				"KEEP-ALIVE/ACK", "%s:%d", address, ntohs(net->current->v4.sin_port)
+			);
+
 			/* Almost the same request types. The first fields are the exact same ones. */
 			net_write(net, buffer, sizeof(RequestKeepAliveAck), 0);
 		} else {
 			RequestPutError* answer = buffer;
 
-			wtf("hash was PUT but already registered");
+			msg_out(
+				"PUT/ERR", "%s:%d", address, ntohs(net->current->v4.sin_port)
+			);
 
 			answer->type = REQUEST_PUT_ERROR;
 
@@ -159,6 +172,18 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 		return;
 	}
 
+	if (1) {
+		struct sockaddr_in* in = (void*) net->current;
+		char address[INET6_ADDRSTRLEN];
+		inet_ntop(net->current->v4.sin_family, &in->sin_addr, address, sizeof(address));
+
+		msg_in(
+			"GET",
+			"%s:%d",
+			address, ntohs(net->current->v4.sin_port)
+		);
+	}
+
 	answer->type = REQUEST_GET_ACK;
 	memcpy(answer->hash_segment.hash, datagram->hash_segment.hash, sizeof(answer->hash_segment.hash));
 	answer->count = 0;
@@ -166,8 +191,6 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 	int i;
 	RegisteredHash* rh;
 	char address[INET6_ADDRSTRLEN];
-
-	srsly("GET/ACK> %s", hash_data_schar(datagram->hash_segment.hash));
 
 	vec_foreach (registered_hashes, rh, i) {
 		if (!memcmp(rh->hash, datagram->hash_segment.hash, sizeof(*rh->hash))) {
@@ -184,7 +207,7 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 
 				memcpy(&client->address, &in->sin_addr, sizeof(client->address));
 
-				srsly(" - sending pair: %s:%d -", address, ntohs(in->sin_port));
+				srsly(" - sending peer: %s:%d -", address, ntohs(in->sin_port));
 
 				answer->count += 1;
 				currentClient += sizeof(SegmentClient4);
@@ -210,6 +233,12 @@ handle_get(struct net* net, void* buffer, vec_void_t* registered_hashes)
 			}
 		}
 	}
+
+	msg_out(
+		"GET/ACK",
+		"%s:%d",
+		address, ntohs(net->current->v4.sin_port)
+	);
 
 	net_write(net, answer, datagram_size, 0);
 }
@@ -257,7 +286,7 @@ handle_timeout(vec_void_t* registered_hashes)
 
 			vec_pop(registered_hashes);
 
-			wtf("hash expired");
+			wtf(" - hash expired - ");
 		}
 	}
 }
@@ -348,15 +377,12 @@ main(int argc, const char** argv)
 		/* FIXME: For each case, assert() that count is more than the matching expected datagram size. */
 		switch (type) {
 			case REQUEST_PUT:
-				srsly("PUT <<");
 				handle_put(&net, buffer, &registered_hashes, 0);
 				break;
 			case REQUEST_KEEP_ALIVE:
-				srsly("KEEP_ALIVE <<");
 				handle_put(&net, buffer, &registered_hashes, 1);
 				break;
 			case REQUEST_GET:
-				srsly("GET <<");
 				handle_get(&net, buffer, &registered_hashes);
 				break;
 			case REQUEST_PRINT:

@@ -19,6 +19,14 @@
 #define CMD_LIST 4
 #define CMD_DEBUG 99
 
+static char address_schar_buffer[128];
+static const char*
+address_schar(int family, void* address)
+{
+	inet_ntop(family, address, address_schar_buffer, sizeof(address_schar_buffer));
+	return address_schar_buffer;
+}
+
 /**
  * Yahaloo,
  *
@@ -81,7 +89,9 @@ send_get_client(RegisteredFile* rf, vec_void_t* connected_clients)
 			equal = equal && (0 == memcmp(&net->addr.v4.sin_addr, &client->v4.address, client->v4.ipv == 6 ? 4 : 16));
 
 			if (equal) {
-				printf("Should be sending client get request here.\n");
+				msg_out("GET-CLIENT", "%s:%d",
+					address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
+					net->current->v6.sin6_port);
 
 				unsigned char* hash;
 				vec_foreach (&rf->hash_data->chunkDigests, hash, k) {
@@ -131,9 +141,11 @@ send_list(
 
 	char address[64];
 	inet_ntop(sin_family, client->v6.address, address, sizeof(address));
-	srsly("LIST>");
+
+	msg_in("LIST", "%s:%d",
+		address_schar(client->v6.ipv == 6 ? AF_INET : AF_INET6, &client->v6.address),
+		ntohs(client->v6.port));
 	srsly(" - hash: %s - ", hash_data_schar(hash));
-	srsly(" - ipv%d, %s:%d - ", client->v4.ipv == 6 ? 4 : 6, address, ntohs(client->v4.port));
 
 	struct net* peer = NULL;
 	int already_registered = 0;
@@ -190,15 +202,18 @@ send_list(
 }
 
 void
-handle_list ( char * buffer, vec_void_t * registered_files , struct net * server, vec_void_t * connected_clients )
+handle_list ( struct net* net, char * buffer, vec_void_t * registered_files , struct net * server )
 {
-	srsly("HANDLE LIST>");
 	RequestList    * rq = (void*) buffer;
 	RequestListAck * rp = (void*) buffer;
 
 	int i;
 	RegisteredFile * rf;
 	int check = 0;
+
+	msg_in("LIST", "%s:%d",
+		address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
+		ntohs(net->current->v6.sin6_port));
 
 	if ( rq->hash.c != 50 )
 	{
@@ -249,17 +264,24 @@ handle_list ( char * buffer, vec_void_t * registered_files , struct net * server
 		rp->data[i].index = i;
 	}
 
-	srsly("addresse %s port %d", address, ntohs(server->current->v4.sin_port));
+	msg_out("LIST/ACK", "%s:%d",
+		address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
+		ntohs(net->current->v6.sin6_port));
+
 	net_write( server, rp, sizeof(*rp) + ((i+1) * sizeof(SegmentChunkHash)) , 0 );
 }
 
-void handle_list_ack ( char * buffer, vec_void_t * registered_files )
+void handle_list_ack ( struct net* net, char * buffer, vec_void_t * registered_files )
 {
 	RequestListAck * rq = (void*) buffer;
 
+	msg_in("LIST/ACK", "%s:%d",
+		address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
+		ntohs(net->current->v6.sin6_port));
+
 	if ( rq->file_hash_segment.c != 50 )
 	{
-		orz("LIST/ACK<<Bad file hash segment !");
+		orz(" - Bad file hash segment ! - ");
 		return;
 	}
 
@@ -269,12 +291,12 @@ void handle_list_ack ( char * buffer, vec_void_t * registered_files )
 	{
 		if ( memcmp( rq->file_hash_segment.hash, rf->hash_data->digest, 32) != 0 )
 		{
-			orz("LIST/ACK<< Bad File Hash -> %s", hash_data_schar(rq->file_hash_segment.hash));
+			orz(" - bad file hash %s - ", hash_data_schar(rq->file_hash_segment.hash));
 			return;
 		}
 		else
 		{
-			srsly("LIST/ACK<< File Hash -> %s", hash_data_schar(rq->file_hash_segment.hash));	
+			srsly(" - hash: %s - ", hash_data_schar(rq->file_hash_segment.hash));
 			break;
 		}
 	}
@@ -310,7 +332,7 @@ void handle_list_ack ( char * buffer, vec_void_t * registered_files )
 		vec_push( &rf->hash_data->chunkDigests, chunk_hash );
 
 //		printf(" >> %d\n", (char)rq->data[i].hash[0] );
-		srsly("  Chunk %02d(%02d) : %s \n", i, rq->data[i].index, hash_data_schar( chunk_hash ));
+		srsly("   Chunk %02d(%02d) : %s \n", i, rq->data[i].index, hash_data_schar( (unsigned char*) chunk_hash ));
 //		for ( int j = 0 ; j < 1000 ; j++ )
 //			send_get_client(buffer, );
 	}
@@ -387,6 +409,8 @@ send_put(struct net* net, struct net* srv, const HashData* hd)
 		net->version == 4 ? 4 : 16
 	);
 
+	msg_out("PUT", "%s:%d", address_schar(saddr->sin_family, &rq->client_segment.v6.address), ntohs(saddr->sin_port));
+
 	net_write(net, (void*) rq, sizeof(*rq), 0);
 
 	return err;
@@ -405,6 +429,10 @@ send_keep_alive(struct net* net, const HashData * hd)
 	rq->hash_segment.c = 50;
 	rq->hash_segment.size = 32;
 	memcpy((void*) rq->hash_segment.hash, hd->digest, sizeof(rq->hash_segment.hash));
+
+	msg_out("KEEP-ALIVE", "%s:%d",
+		address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
+		ntohs(net->current->v6.sin6_port));
 
 	net_write(net, (void*) rq, sizeof(*rq), 0);
 
@@ -428,6 +456,10 @@ send_get(struct net* tracker, struct net* server, const HashData* hd)
 	r.client_segment.v6.port = saddr->sin6_port;
 	memcpy(&r.client_segment.v6.address, (void*) &saddr->sin6_addr,
 		server->version == 4 ? 4 : 16);
+
+	msg_out("GET", "%s:%d",
+		address_schar(tracker->addr.v6.sin6_family, &tracker->addr.v6.sin6_addr),
+		ntohs(tracker->addr.v6.sin6_port));
 
 	net_write(tracker, (void*) &r, sizeof(r), 0);
 }
@@ -461,33 +493,27 @@ handle_timeout(struct net* tracker, struct net* server, vec_void_t* registered_f
 		if (--rf->timeout == 0) {
 			switch (rf->status) {
 				case STATUS_PUT:
-					srsly("PUT> %s", hash_data_schar(rf->hash_data->digest));
 					send_put(tracker, server, rf->hash_data);
 					rf->timeout = 5;
 					break;
 				case STATUS_KEEP_ALIVE:
-					orz("PUT> %s", hash_data_schar(rf->hash_data->digest));
 					send_put(tracker, server, rf->hash_data);
 					rf->status = STATUS_PUT;
 					rf->timeout = 5;
 					break;
 				case STATUS_GET:
-					srsly("GET> %s", hash_data_schar(rf->hash_data->digest));
 					send_get(tracker, server, rf->hash_data);
 					rf->timeout = 5;
 					break;
 				case STATUS_LIST:
-					srsly("LIST> %s", hash_data_schar(rf->hash_data->digest));
 					send_list( rf->hash_data->digest, rf, connected_clients );
 					break;
 				case STATUS_GET_CLIENT:
-					srsly("GET-CLIENT> %s", hash_data_schar(rf->hash_data->digest));
 					send_get_client(rf, connected_clients);
 					break;
 			}
 		} else if (rf->status == STATUS_KEEP_ALIVE) {
 			if (rf->timeout <= 30 && rf->timeout % 5 == 0) {
-				srsly("KEEP-ALIVE> %s", hash_data_schar(rf->hash_data->digest));
 				send_keep_alive(tracker, rf->hash_data);
 			}
 		}
@@ -537,7 +563,7 @@ handle_put_ack(char* buffer, int size, vec_void_t* registered_files)
 }
 
 void
-handle_put_error(char* buffer, int size, vec_void_t* registered_files)
+handle_put_error(struct net* net, char* buffer, int size, vec_void_t* registered_files)
 {
 	RequestPutError* r = (void*) buffer;
 	int i;
@@ -551,7 +577,9 @@ handle_put_error(char* buffer, int size, vec_void_t* registered_files)
 
 	vec_foreach (registered_files, rf, i) {
 		if (!memcmp(rf->hash_data->digest, r->hash_segment.hash, 32)) {
-			wtf("PUT/ERROR << %s", hash_data_schar(r->hash_segment.hash));
+			msg_in("PUT/ERR", "%s:%d",
+				address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
+				ntohs(net->current->v6.sin6_port));
 
 			rf->timeout = 60;
 			rf->status = STATUS_KEEP_ALIVE;
@@ -610,7 +638,7 @@ handle_keep_alive_error(struct net* tracker, struct net* server, char* buffer, i
 }
 
 void
-handle_get_ack( char* buffer, int count, vec_void_t* registered_files, vec_void_t* connected_clients)
+handle_get_ack( struct net* net, char* buffer, int count, vec_void_t* registered_files, vec_void_t* connected_clients)
 {
 	RequestGetAck* r = (void*) buffer;
 	int i;
@@ -621,10 +649,12 @@ handle_get_ack( char* buffer, int count, vec_void_t* registered_files, vec_void_
 		return;
 	}
 
-	count -= sizeof(*r);
-
-	srsly("GET/ACK <<");
+	msg_out("GET/ACK", "%s:%d",
+		address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
+		ntohs(net->current->v6.sin6_port));
 	srsly(" - hash: %s - ", hash_data_schar(r->hash_segment.hash));
+
+	count -= sizeof(*r);
 
 	vec_foreach (registered_files, rf, i) {
 		if (!memcmp(rf->hash_data->digest, r->hash_segment.hash, 32)) {
@@ -668,7 +698,7 @@ handle_get_ack( char* buffer, int count, vec_void_t* registered_files, vec_void_
 					(void*) &s->v4.address, address, sizeof(address)
 				);
 
-				srsly(" - new pair: %s:%d - ", address, ntohs(s->v4.port));
+				srsly(" - new peer: %s:%d - ", address, ntohs(s->v4.port));
 			}
 
 			rf->timeout = 30;
@@ -695,7 +725,9 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 		if (!memcmp(rf->hash_data->digest, r->chunk_hash_segment.hash, 32)) {
 			RequestGetClientAck* answer = (void*) buffer;
 
-			srsly("GET-CLIENT> %s", rf->filename);
+			msg_in("GET-CLIENT", "%s:%d",
+				address_schar(net->current->v6.sin6_family, &net->current->v6.sin6_addr),
+				ntohs(net->current->v6.sin6_port));
 
 			FILE* f = fopen(rf->filename, "r");
 
@@ -727,7 +759,7 @@ handle_get_client(struct net* net, char* buffer, int count, vec_void_t* register
 }
 
 int
-event_loop(struct net* net, struct net* srv, vec_void_t* registered_files, uint16_t tracker_port )
+event_loop(struct net* net, struct net* srv, vec_void_t* registered_files)
 {
 	char buffer[CHUNK_SIZE * 2];
 
@@ -766,7 +798,7 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files, uint1
 					handle_put_ack(buffer, count, registered_files);
 					break;
 				case REQUEST_PUT_ERROR:
-					handle_put_error(buffer, count, registered_files);
+					handle_put_error(net, buffer, count, registered_files);
 					break;
 				case REQUEST_KEEP_ALIVE_ACK:
 					handle_keep_alive_ack(buffer, count, registered_files);
@@ -775,13 +807,13 @@ event_loop(struct net* net, struct net* srv, vec_void_t* registered_files, uint1
 					handle_keep_alive_error(net, srv, buffer, count, registered_files);
 					break;
 				case REQUEST_GET_ACK:
-					handle_get_ack(buffer, count, registered_files, &connected_clients);
+					handle_get_ack(net, buffer, count, registered_files, &connected_clients);
 					break;
 				case REQUEST_LIST:
-					handle_list(buffer, registered_files, srv, &connected_clients);
+					handle_list(net, buffer, registered_files, srv);
 					break;
 				case REQUEST_LIST_ACK:
-					handle_list_ack(buffer, registered_files );
+					handle_list_ack(net, buffer, registered_files );
 					break;
 				default:
 					orz("Unknown request type [%d]", type);
@@ -815,7 +847,7 @@ put_file(vec_void_t* files, const char* filename)
 
 	vec_push(files, rf);
 
-	srsly("registered for PUT > %s", filename);
+	srsly("Preparing to send file > %s", filename);
 }
 
 void
@@ -851,7 +883,7 @@ get_file(vec_void_t* files, const char* digest, const char* filename)
 
 	vec_push(files, rf);
 
-	srsly("registered for GET > %s", filename);
+	srsly("Preparing to receive file > %s", filename);
 }
 
 /**
@@ -1007,7 +1039,7 @@ main ( int argc, const char* argv[] )
 	err = net_init(&srv, peers_port, "0.0.0.0", NET_SERVER, NET_IPV4);
 	net_error(err);
 
-	event_loop(&net, &srv, &registered_files, tracker_port);
+	event_loop(&net, &srv, &registered_files);
 
 	/* Memory freeing, obviously. */
 	for (int i = 0; i < registered_files.length; i++) {

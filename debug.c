@@ -54,3 +54,37 @@ srsly(const char *restrict fmt, ...)
 	return ret;
 }
 
+int
+msg_in(const char* packet, const char *restrict fmt, ...)
+{
+	int ret;
+	va_list ap;
+
+	fprintf(stdout, "\033[01;34m %-16s << \033[01;37m", packet);
+
+	va_start(ap, fmt);
+	ret = vfprintf(stdout, fmt, ap);
+	va_end(ap);
+
+	fputs("\033[00m\n", stdout);
+
+	return ret;
+}
+
+int
+msg_out(const char* packet, const char *restrict fmt, ...)
+{
+	int ret;
+	va_list ap;
+
+	fprintf(stdout, "\033[01;34m %-16s >> \033[01;37m", packet);
+
+	va_start(ap, fmt);
+	ret = vfprintf(stdout, fmt, ap);
+	va_end(ap);
+
+	fputs("\033[00m\n", stdout);
+
+	return ret;
+}
+
