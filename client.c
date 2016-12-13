@@ -321,6 +321,9 @@ void handle_list_ack ( struct net* net, char * buffer, vec_void_t * registered_f
 		return;
 	}
 
+	rf->timeout = 5;
+	rf->status  = STATUS_LIST;
+
 	for ( int i = 0 ; i < size ; i++ )
 	{
 		if ( rq->data[i].c != 51 )
@@ -349,8 +352,6 @@ void handle_list_ack ( struct net* net, char * buffer, vec_void_t * registered_f
 	}
 
 	//mode get client
-	rf->timeout = 5;
-	rf->status  = STATUS_GET_CLIENT;
 	
 }
 
